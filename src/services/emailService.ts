@@ -87,7 +87,7 @@ export const send2FACode = async (
 ): Promise<boolean> => {
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Código de Autenticación 2FA</h2>
+      <h2 style="color: #333;">Código de Autenticación</h2>
       <p>Se ha solicitado acceso a tu cuenta. Tu código de verificación es:</p>
       <div style="background-color: #f4f4f4; padding: 15px; text-align: center; font-size: 32px; font-weight: bold; letter-spacing: 5px; margin: 20px 0;">
         ${code}

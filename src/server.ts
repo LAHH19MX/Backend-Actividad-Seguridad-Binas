@@ -9,6 +9,7 @@ import { errorHandler, notFoundHandler } from "./middlewares/errorHandler";
 import { requestLogger } from "./middlewares/logger";
 import { generalLimiter } from "./middlewares/rateLimiter";
 import authRoutes from "./routes/authRoutes";
+import userRoutes from "./routes/userRoutes";
 
 dotenv.config();
 
@@ -80,10 +81,11 @@ app.get("/api/test-db", async (req: Request, res: Response) => {
   }
 });
 
-// Rutas de la API (se agregarán en siguientes pasos)
+// Rutas de la API
 app.use("/api/auth", authRoutes);
-console.log("✅ Rutas de auth cargadas:", authRoutes);
-// Manejo de errores
+app.use("/api/user", userRoutes);
+app.use("/api/auth", userRoutes);
+
 app.use(notFoundHandler);
 app.use(errorHandler);
 

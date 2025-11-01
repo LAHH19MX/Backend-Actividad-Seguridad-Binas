@@ -6,6 +6,9 @@ import {
   resend2FA,
   verify2FA,
   forgotPassword,
+  resendRecoveryCode,
+  verifyRecoveryCode,
+  resetPassword,
 } from "../controllers/authController";
 import {
   registerLimiter,
@@ -57,9 +60,28 @@ router.post("/verify-2fa", codeLimiter, verify2FA);
  */
 router.post("/forgot-password", codeLimiter, forgotPassword);
 
+/**
+ * @route   POST /api/auth/resend-recovery-code
+ * @desc    Reenviar código de recuperación por email o SMS
+ * @access  Public
+ */
+router.post("/resend-recovery-code", codeLimiter, resendRecoveryCode);
+
+/**
+ * @route   POST /api/auth/verify-recovery-code
+ * @desc    Verificar código de recuperación de contraseña
+ * @access  Public
+ */
+router.post("/verify-recovery-code", codeLimiter, verifyRecoveryCode);
+
+/**
+ * @route   POST /api/auth/reset-password
+ * @desc    Cambiar contraseña con token de reset
+ * @access  Public
+ */
+router.post("/reset-password", resetPassword);
+
 // Próximos endpoints (Pasos 12-14):
-// router.post('/resend-recovery-code', codeLimiter, resendRecoveryCode);
-// router.post('/verify-recovery-code', codeLimiter, verifyRecoveryCode);
 // router.post('/reset-password', resetPassword);
 // router.post('/logout', logout);
 // router.post('/refresh-token', refreshToken);
