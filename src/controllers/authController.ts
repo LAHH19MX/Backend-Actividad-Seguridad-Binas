@@ -396,6 +396,14 @@ export const verifyRegistration = async (
     });
   } catch (error: any) {
     console.error("❌ Error en verificación de registro:", error);
+    if (error instanceof AppError) {
+      res.status(error.statusCode).json({
+        success: false,
+        error: error.message,
+      });
+      return;
+    }
+
     res.status(500).json({
       success: false,
       error: "Error al verificar cuenta",
@@ -453,7 +461,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // 6. Verificar si usuario está verificado
     if (!user.isVerified) {
-      res.status(403).json({
+      res.status(401).json({
         success: false,
         error: "Cuenta no verificada. Revisa tu email y teléfono.",
       });
