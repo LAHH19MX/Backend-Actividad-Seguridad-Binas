@@ -40,7 +40,6 @@
     "dotenv-cli": "^11.0.0",
     "nodemon": "^3.1.10",
     "prisma": "^6.18.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.9.3"
+    "ts-node": "^10.9.2"
   }
 }
