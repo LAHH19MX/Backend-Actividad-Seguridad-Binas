@@ -21,7 +21,6 @@ export interface RegisterDTO {
 export interface VerifyRegistrationDTO {
   email: string;
   emailCode: string;
-  smsCode: string;
 }
 
 export interface LoginDTO {
@@ -36,7 +35,7 @@ export interface Verify2FADTO {
 
 export interface Resend2FADTO {
   tempToken: string;
-  method: "email" | "sms";
+  method: "email";
 }
 
 export interface ForgotPasswordDTO {

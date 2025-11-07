@@ -234,13 +234,13 @@ export const verifyRegistration = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { email, emailCode, smsCode }: VerifyRegistrationDTO = req.body;
+    const { email, emailCode }: VerifyRegistrationDTO = req.body;
 
     // 1. Validar que todos los campos existan
-    if (!email || !emailCode || !smsCode) {
+    if (!email || !emailCode) {
       res.status(400).json({
         success: false,
-        error: "Todos los campos son obligatorios",
+        error: "Email y código son obligatorios",
       });
       return;
     }
@@ -248,11 +248,11 @@ export const verifyRegistration = async (
     // 2. Sanitizar email
     const sanitizedEmail = sanitizeEmail(email);
 
-    // 3. Validar formato de códigos (6 dígitos)
-    if (!isValidCode(emailCode) || !isValidCode(smsCode)) {
+    // 3. Validar formato de código (6 dígitos)
+    if (!isValidCode(emailCode)) {
       res.status(400).json({
         success: false,
-        error: "Los códigos deben ser de 6 dígitos",
+        error: "El código debe ser de 6 dígitos",
       });
       return;
     }
@@ -297,25 +297,7 @@ export const verifyRegistration = async (
       return;
     }
 
-    // 7. Buscar código de SMS
-    const storedSmsCode = await prisma.verificationCode.findFirst({
-      where: {
-        userId: user.id,
-        type: "REGISTRATION_SMS",
-        isUsed: false,
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (!storedSmsCode) {
-      res.status(400).json({
-        success: false,
-        error: "Código de SMS no encontrado o ya fue usado",
-      });
-      return;
-    }
-
-    // 8. Verificar si los códigos expiraron
+    // 7. Verificar si el código expiró
     const now = new Date();
     if (now > storedEmailCode.expiresAt) {
       res.status(400).json({
@@ -325,15 +307,7 @@ export const verifyRegistration = async (
       return;
     }
 
-    if (now > storedSmsCode.expiresAt) {
-      res.status(400).json({
-        success: false,
-        error: "El código de SMS ha expirado",
-      });
-      return;
-    }
-
-    // 9. Verificar código de email
+    // 8. Verificar código de email
     const { compareHash } = await import("../utils/encryption");
     const isEmailCodeValid = await compareHash(emailCode, storedEmailCode.code);
 
@@ -345,33 +319,22 @@ export const verifyRegistration = async (
       return;
     }
 
-    // 10. Verificar código de SMS
-    const isSmsCodeValid = await compareHash(smsCode, storedSmsCode.code);
-
-    if (!isSmsCodeValid) {
-      res.status(400).json({
-        success: false,
-        error: "El código de SMS es incorrecto",
-      });
-      return;
-    }
-
-    // 11. Actualizar usuario a verificado
+    // 9. Actualizar usuario a verificado
     await prisma.user.update({
       where: { id: user.id },
       data: { isVerified: true },
     });
 
-    // 12. Marcar códigos como usados
+    // 10. Marcar código como usado
     await prisma.verificationCode.updateMany({
       where: {
         userId: user.id,
-        type: { in: ["REGISTRATION_EMAIL", "REGISTRATION_SMS"] },
+        type: "REGISTRATION_EMAIL",
       },
       data: { isUsed: true },
     });
 
-    // 13. Registrar verificación exitosa
+    // 11. Registrar verificación exitosa
     await prisma.loginAttempt.create({
       data: {
         userId: user.id,
@@ -385,7 +348,7 @@ export const verifyRegistration = async (
 
     console.log(`✅ Usuario verificado exitosamente: ${sanitizedEmail}`);
 
-    // 14. Responder con éxito
+    // 12. Responder con éxito
     res.status(200).json({
       success: true,
       message: "Cuenta verificada exitosamente. Ahora puedes iniciar sesión.",
@@ -625,10 +588,10 @@ export const resend2FA = async (req: Request, res: Response): Promise<void> => {
     }
 
     // 2. Validar que el método sea válido
-    if (method !== "email" && method !== "sms") {
+    if (method !== "email") {
       res.status(400).json({
         success: false,
-        error: "Método inválido. Usa 'email' o 'sms'",
+        error: "Método inválido. Solo se permite 'email'",
       });
       return;
     }
@@ -699,27 +662,21 @@ export const resend2FA = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    // 9. Enviar código según método elegido
-    let sent = false;
-
-    if (method === "email") {
-      sent = await send2FACode(user.email, newCode);
-    } else if (method === "sms") {
-      sent = await send2FACodeSMS(user.phone, newCode);
-    }
+    // 9. Enviar código por email
+    const sent = await send2FACode(user.email, newCode);
 
     if (!sent) {
-      console.error(`⚠️  Error enviando código 2FA por ${method}`);
+      console.error(`⚠️  Error enviando código 2FA por email`);
     }
 
-    console.log(`✅ Código 2FA reenviado por ${method} a: ${user.email}`);
+    console.log(`✅ Código 2FA reenviado por email a: ${user.email}`);
 
     // 10. Responder con éxito
     res.status(200).json({
       success: true,
-      message: `Código 2FA reenviado por ${method}`,
+      message: "Código 2FA reenviado por email",
       data: {
-        method,
+        method: "email",
         sent,
         expiresIn: "5 minutos",
       },
@@ -1065,10 +1022,10 @@ export const resendRecoveryCode = async (
     }
 
     // 2. Validar que el método sea válido
-    if (method !== "email" && method !== "sms") {
+    if (method !== "email") {
       res.status(400).json({
         success: false,
-        error: "Método inválido. Usa 'email' o 'sms'",
+        error: "Método inválido. Solo se permite 'email'",
       });
       return;
     }
@@ -1139,29 +1096,23 @@ export const resendRecoveryCode = async (
       },
     });
 
-    // 9. Enviar código según método elegido
-    let sent = false;
-
-    if (method === "email") {
-      sent = await sendPasswordResetCode(user.email, newCode);
-    } else if (method === "sms") {
-      sent = await sendPasswordResetCodeSMS(user.phone, newCode);
-    }
+    // 9. Enviar código por email
+    const sent = await sendPasswordResetCode(user.email, newCode);
 
     if (!sent) {
-      console.error(`⚠️  Error enviando código de recuperación por ${method}`);
+      console.error(`⚠️  Error enviando código de recuperación por email`);
     }
 
     console.log(
-      `✅ Código de recuperación reenviado por ${method} a: ${user.email}`
+      `✅ Código de recuperación reenviado por email a: ${user.email}`
     );
 
     // 10. Responder con éxito
     res.status(200).json({
       success: true,
-      message: `Código de recuperación reenviado por ${method}`,
+      message: "Código de recuperación reenviado por email",
       data: {
-        method,
+        method: "email",
         sent,
         expiresIn: "5 minutos",
       },
