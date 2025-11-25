@@ -24,7 +24,7 @@ export const errorHandler = (
   const statusCode = (err as AppError).statusCode || 500;
   const message = err.message || "Error interno del servidor";
 
-  console.error("❌ ERROR:", {
+  console.error("ERROR:", {
     statusCode,
     message: err.message,
     stack: process.env.NODE_ENV === "development" ? err.stack : undefined,

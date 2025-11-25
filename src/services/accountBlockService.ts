@@ -1,8 +1,18 @@
 import prisma from "../config/database";
 import { sendAccountBlockedAlert } from "./emailService";
 
-const BLOCK_DURATION_MINUTES = 10; // Bloqueo por 10 minutos
-const MAX_FAILED_ATTEMPTS = 5; // Máximo de intentos fallidos
+const maskEmail = (email: string): string => {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***.***";
+
+  const maskedLocal =
+    local.length > 2 ? `${local[0]}***${local[local.length - 1]}` : "***";
+
+  return `${maskedLocal}@${domain}`;
+};
+
+const BLOCK_DURATION_MINUTES = 15; // Bloqueo por 10 minutos
+const MAX_FAILED_ATTEMPTS = 3; // Máximo de intentos fallidos
 
 export const incrementFailedAttempts = async (
   userId: string,
@@ -17,7 +27,7 @@ export const incrementFailedAttempts = async (
 
   const newAttempts = user.failedAttempts + 1;
 
-  // Si llega a 5 intentos, bloquear cuenta
+  // Si llega a  intentos, bloquear cuenta
   if (newAttempts >= MAX_FAILED_ATTEMPTS) {
     const blockedUntil = new Date(
       Date.now() + BLOCK_DURATION_MINUTES * 60 * 1000
@@ -35,7 +45,7 @@ export const incrementFailedAttempts = async (
     // Enviar email de alerta
     await sendAccountBlockedAlert(email, reason);
 
-    console.error(`🚫 Cuenta bloqueada: ${email} - Razón: ${reason}`);
+    console.error(`Cuenta bloqueada: ${maskEmail(email)} - Razón: ${reason}`);
 
     return { isBlocked: true, attemptsLeft: 0 };
   }
@@ -93,7 +103,7 @@ export const checkIfBlocked = async (
       },
     });
 
-    console.log(`✅ Cuenta desbloqueada automáticamente: ${user.email}`);
+    console.log(`Cuenta desbloqueada automáticamente`);
     return { isBlocked: false };
   }
 
@@ -123,5 +133,5 @@ export const blockAccount = async (
   });
 
   await sendAccountBlockedAlert(email, reason);
-  console.error(`🚫 Cuenta bloqueada manualmente: ${email} - Razón: ${reason}`);
+  console.error(`Cuenta bloqueada manualmente: ${email} - Razón: ${reason}`);
 };

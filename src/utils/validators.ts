@@ -7,7 +7,7 @@ const phoneRegex = /^\+[1-9]\d{1,14}$/;
 // Regex para validar contraseña fuerte
 // Mínimo 8 caracteres, al menos una mayúscula, una minúscula, un número y un carácter especial
 const passwordRegex =
-  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[A-Za-z\d@$!%*?&#]{8,}$/;
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#/])[A-Za-z\d@$!%*?&#/]{8,}$/;
 
 // Validar email
 export const isValidEmail = (email: string): boolean => {

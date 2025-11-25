@@ -2,6 +2,16 @@ import { Response } from "express";
 import { AuthRequest } from "../types";
 import prisma from "../config/database";
 
+const maskEmail = (email: string): string => {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***.***";
+
+  const maskedLocal =
+    local.length > 2 ? `${local[0]}***${local[local.length - 1]}` : "***";
+
+  return `${maskedLocal}@${domain}`;
+};
+
 /**
  * GET /api/user/profile
  * Obtener perfil del usuario autenticado
@@ -35,7 +45,6 @@ export const getProfile = async (
         isVerified: true,
         createdAt: true,
         updatedAt: true,
-        // NO incluir password ni campos sensibles
       },
     });
 
@@ -47,7 +56,7 @@ export const getProfile = async (
       return;
     }
 
-    console.log(`✅ Perfil consultado: ${user.email}`);
+    console.log(`Perfil consultado: ${maskEmail(user.email)}`);
 
     res.status(200).json({
       success: true,
@@ -55,7 +64,7 @@ export const getProfile = async (
       data: { user },
     });
   } catch (error: any) {
-    console.error("❌ Error obteniendo perfil:", error);
+    console.error("Error obteniendo perfil:", error);
     res.status(500).json({
       success: false,
       error: "Error al obtener perfil",
@@ -75,7 +84,7 @@ export const logout = async (
   try {
     const email = req.user?.email;
 
-    console.log(`✅ Logout exitoso: ${email}`);
+    console.log(`Logout exitoso: ${email ? maskEmail(email) : "unknown"}`);
 
     // En una implementación real, aquí podrías:
     // - Agregar el token a una blacklist en Redis
@@ -164,7 +173,7 @@ export const refreshToken = async (
       role: user.role,
     });
 
-    console.log(`✅ Token refrescado: ${user.email}`);
+    console.log(`Token refrescado: ${maskEmail(user.email)}`);
 
     res.status(200).json({
       success: true,

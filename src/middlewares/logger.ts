@@ -1,5 +1,16 @@
 import { Request, Response, NextFunction } from "express";
 
+// Función para ofuscar emails en logs
+const maskEmail = (email: string): string => {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***.***";
+
+  const maskedLocal =
+    local.length > 2 ? `${local[0]}***${local[local.length - 1]}` : "***";
+
+  return `${maskedLocal}@${domain}`;
+};
+
 // Logger personalizado para requests
 export const requestLogger = (
   req: Request,
@@ -23,8 +34,8 @@ export const requestLogger = (
 // Logger para eventos de seguridad
 export const securityLogger = {
   logFailedLogin: (email: string, ip: string, reason: string) => {
-    console.warn("⚠️  FAILED LOGIN:", {
-      email,
+    console.warn("Login Fallido:", {
+      email: maskEmail(email),
       ip,
       reason,
       timestamp: new Date().toISOString(),
@@ -32,24 +43,24 @@ export const securityLogger = {
   },
 
   logAccountBlocked: (email: string, ip: string) => {
-    console.error("🚫 ACCOUNT BLOCKED:", {
-      email,
+    console.error("Cuenta Bloqueada:", {
+      email: maskEmail(email),
       ip,
       timestamp: new Date().toISOString(),
     });
   },
 
   logSuccessfulLogin: (email: string, ip: string) => {
-    console.log("✅ SUCCESSFUL LOGIN:", {
-      email,
+    console.log("Login Exitoso:", {
+      email: maskEmail(email),
       ip,
       timestamp: new Date().toISOString(),
     });
   },
 
   logPasswordReset: (email: string) => {
-    console.log("🔑 PASSWORD RESET:", {
-      email,
+    console.log("Restablece Contraseña:", {
+      email: maskEmail(email),
       timestamp: new Date().toISOString(),
     });
   },

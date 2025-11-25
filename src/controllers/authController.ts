@@ -42,6 +42,16 @@ import {
 import { generateTemporaryToken, verifyTemporaryToken } from "../utils/jwt";
 import { verifyPassword, compareHash } from "../utils/encryption";
 
+const maskEmail = (email: string): string => {
+  const [local, domain] = email.split("@");
+  if (!local || !domain) return "***@***.***";
+
+  const maskedLocal =
+    local.length > 2 ? `${local[0]}***${local[local.length - 1]}` : "***";
+
+  return `${maskedLocal}@${domain}`;
+};
+
 /**
  * REGISTRO - POST /api/auth/register
  */
@@ -346,7 +356,9 @@ export const verifyRegistration = async (
       },
     });
 
-    console.log(`✅ Usuario verificado exitosamente: ${sanitizedEmail}`);
+    console.log(
+      `Usuario verificado exitosamente: ${maskEmail(sanitizedEmail)}`
+    );
 
     // 12. Responder con éxito
     res.status(200).json({
@@ -358,7 +370,7 @@ export const verifyRegistration = async (
       },
     });
   } catch (error: any) {
-    console.error("❌ Error en verificación de registro:", error);
+    console.error("Error en verificación de registro:", error);
     if (error instanceof AppError) {
       res.status(error.statusCode).json({
         success: false,
@@ -550,8 +562,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    console.log(`✅ Credenciales válidas para: ${sanitizedEmail}`);
-    console.log(`📧 Código 2FA enviado por email`);
+    console.log(`Credenciales válidas para: ${maskEmail(sanitizedEmail)}`);
+    console.log(`Código 2FA enviado por email`);
 
     // 16. Responder con token temporal
     res.status(200).json({
@@ -669,7 +681,7 @@ export const resend2FA = async (req: Request, res: Response): Promise<void> => {
       console.error(`⚠️  Error enviando código 2FA por email`);
     }
 
-    console.log(`✅ Código 2FA reenviado por email a: ${user.email}`);
+    console.log(`Código 2FA reenviado por email a: ${maskEmail(user.email)}`);
 
     // 10. Responder con éxito
     res.status(200).json({
@@ -866,7 +878,7 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
 
     securityLogger.logSuccessfulLogin(user.email, req.ip || "unknown");
 
-    console.log(`✅ Login exitoso completo: ${user.email} - Rol: ${user.role}`);
+    console.log(`Login exitoso completo: ${maskEmail(user.email)}`);
 
     // 14. Responder con JWT + datos del usuario
     res.status(200).json({
@@ -983,7 +995,9 @@ export const forgotPassword = async (
       "10m" // Token válido por 10 minutos
     );
 
-    console.log(`✅ Código de recuperación enviado a: ${sanitizedEmail}`);
+    console.log(
+      `Código de recuperación enviado a: ${maskEmail(sanitizedEmail)}`
+    );
 
     // 11. Responder con éxito
     res.status(200).json({
@@ -1433,7 +1447,9 @@ export const resetPassword = async (
       },
     });
 
-    console.log(`✅ Contraseña cambiada exitosamente: ${user.email}`);
+    console.log(
+      `✅ Contraseña cambiada exitosamente: ${maskEmail(user.email)}`
+    );
 
     // 13. Responder con éxito
     res.status(200).json({

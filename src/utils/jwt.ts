@@ -20,7 +20,10 @@ export interface TemporaryTokenPayload {
  * @returns string - Token JWT
  */
 export const generateToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "24h" } as jwt.SignOptions);
+  return jwt.sign(payload, JWT_SECRET, {
+    expiresIn: "15m",
+    algorithm: "HS256",
+  } as jwt.SignOptions);
 };
 
 /**

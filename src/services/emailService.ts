@@ -20,7 +20,7 @@ const sendEmail = async ({
   htmlContent,
 }: EmailOptions): Promise<boolean> => {
   if (!BREVO_API_KEY) {
-    console.error("❌ BREVO_API_KEY no está configurada");
+    console.error("BREVO_API_KEY no está configurada");
     return false;
   }
 
@@ -41,13 +41,10 @@ const sendEmail = async ({
       }
     );
 
-    console.log("✅ Email enviado exitosamente a:", to);
+    console.log("Email enviado exitosamente");
     return true;
   } catch (error: any) {
-    console.error(
-      "❌ Error enviando email:",
-      error.response?.data || error.message
-    );
+    console.error("❌ Error enviando email:", error.message);
     return false;
   }
 };

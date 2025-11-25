@@ -13,10 +13,10 @@ export const generalLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Rate limiter estricto para autenticación (5 intentos por 15 minutos)
+// Rate limiter estricto para autenticación (3 intentos por 15 minutos)
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 3,
   message: {
     success: false,
     error:

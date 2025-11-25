@@ -16,7 +16,7 @@ if (TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN) {
  */
 const sendSMS = async (to: string, message: string): Promise<boolean> => {
   if (!twilioClient || !TWILIO_PHONE_NUMBER) {
-    console.error("❌ Twilio no está configurado correctamente");
+    console.error("Twilio no está configurado correctamente");
     return false;
   }
 
