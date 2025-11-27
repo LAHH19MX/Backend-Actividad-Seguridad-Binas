@@ -11,7 +11,11 @@ export interface JWTPayload {
 
 export interface TemporaryTokenPayload {
   userId: string;
-  purpose: "2FA" | "PASSWORD_RESET" | "PASSWORD_RESET_LINK";
+  purpose:
+    | "2FA"
+    | "PASSWORD_RESET"
+    | "PASSWORD_RESET_LINK"
+    | "SECURITY_QUESTION";
   resetId?: string;
 }
 

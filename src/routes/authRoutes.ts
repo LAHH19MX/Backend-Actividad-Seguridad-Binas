@@ -11,6 +11,8 @@ import {
   resetPassword,
   verifyResetToken,
   resetPasswordWithLink,
+  forgotPasswordWithSecurity,
+  verifySecurityAnswer,
 } from "../controllers/authController";
 import {
   registerLimiter,
@@ -101,5 +103,24 @@ router.get("/verify-reset-id/:id", verifyResetToken);
  * @access  Public
  */
 router.post("/reset-password-link", resetPasswordWithLink);
+
+// Agregar estas rutas después de las rutas existentes de forgot-password
+/**
+ * @route   POST /api/auth/forgot-password-security
+ * @desc    Iniciar recuperación con pregunta secreta
+ * @access  Public
+ */
+router.post(
+  "/forgot-password-security",
+  codeLimiter,
+  forgotPasswordWithSecurity
+);
+
+/**
+ * @route   POST /api/auth/verify-security-answer
+ * @desc    Verificar respuesta de pregunta secreta
+ * @access  Public
+ */
+router.post("/verify-security-answer", codeLimiter, verifySecurityAnswer);
 
 export default router;

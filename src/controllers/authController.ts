@@ -63,14 +63,30 @@ const maskEmail = (email: string): string => {
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, phone, password, confirmPassword }: RegisterDTO =
-      req.body;
+    const {
+      name,
+      email,
+      phone,
+      password,
+      confirmPassword,
+      securityQuestion,
+      securityAnswer,
+    } = req.body;
 
     // 1. Validar que todos los campos existan
-    if (!name || !email || !phone || !password || !confirmPassword) {
+    if (
+      !name ||
+      !email ||
+      !phone ||
+      !password ||
+      !confirmPassword ||
+      !securityQuestion ||
+      !securityAnswer
+    ) {
       res.status(400).json({
         success: false,
-        error: "Todos los campos son obligatorios",
+        error:
+          "Todos los campos son obligatorios, incluyendo la pregunta de seguridad",
       });
       return;
     }
@@ -126,7 +142,31 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 8. Verificar que el email no exista
+    // 8. Validar pregunta de seguridad
+    const {
+      isValidSecurityQuestion,
+      isValidSecurityAnswer,
+      sanitizeSecurityAnswer,
+    } = await import("../utils/validators");
+
+    if (!isValidSecurityQuestion(securityQuestion)) {
+      res.status(400).json({
+        success: false,
+        error: "La pregunta de seguridad seleccionada no es válida",
+      });
+      return;
+    }
+
+    // 9. Validar respuesta de seguridad
+    if (!isValidSecurityAnswer(securityAnswer)) {
+      res.status(400).json({
+        success: false,
+        error: "La respuesta de seguridad debe tener entre 2 y 100 caracteres",
+      });
+      return;
+    }
+
+    // 10. Verificar que el email no exista
     const existingEmail = await prisma.user.findUnique({
       where: { email: sanitizedEmail },
     });
@@ -139,7 +179,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 9. Verificar que el teléfono no exista
+    // 11. Verificar que el teléfono no exista
     const existingPhone = await prisma.user.findUnique({
       where: { phone: sanitizedPhone },
     });
@@ -152,10 +192,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 10. Encriptar contraseña
+    // 12. Encriptar contraseña
     const hashedPassword = await hashPassword(password);
 
-    // 11. Crear usuario en BD (sin verificar)
+    // 13. Sanitizar y encriptar respuesta de seguridad
+    const sanitizedAnswer = sanitizeSecurityAnswer(securityAnswer);
+    const hashedSecurityAnswer = await hashPassword(sanitizedAnswer);
+
+    // 14. Crear usuario en BD (sin verificar)
     const newUser = await prisma.user.create({
       data: {
         name: sanitizedName,
@@ -164,52 +208,34 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         password: hashedPassword,
         role: "CLIENTE",
         isVerified: false,
+        securityQuestion: securityQuestion,
+        securityAnswer: hashedSecurityAnswer,
       },
     });
 
-    // 12. Generar código para email
+    // 15. Generar código para email
     const emailCode = generateVerificationCode();
     const hashedEmailCode = await hashText(emailCode);
     const emailCodeExpiration = generateCodeExpiration(5); // 5 minutos
 
-    // 13. Generar código para SMS
-    const smsCode = generateVerificationCode();
-    const hashedSmsCode = await hashText(smsCode);
-    const smsCodeExpiration = generateCodeExpiration(5); // 5 minutos
-
-    // 14. Guardar ambos códigos en BD
-    await prisma.verificationCode.createMany({
-      data: [
-        {
-          userId: newUser.id,
-          code: hashedEmailCode,
-          type: "REGISTRATION_EMAIL",
-          expiresAt: emailCodeExpiration,
-        },
-        {
-          userId: newUser.id,
-          code: hashedSmsCode,
-          type: "REGISTRATION_SMS",
-          expiresAt: smsCodeExpiration,
-        },
-      ],
+    // 16. Guardar código en BD
+    await prisma.verificationCode.create({
+      data: {
+        userId: newUser.id,
+        code: hashedEmailCode,
+        type: "REGISTRATION_EMAIL",
+        expiresAt: emailCodeExpiration,
+      },
     });
 
-    // 15. Enviar código por email
+    // 17. Enviar código por email
     const emailSent = await sendVerificationCode(sanitizedEmail, emailCode);
 
     if (!emailSent) {
       console.error("⚠️  Error enviando email de verificación");
     }
 
-    // 16. Enviar código por SMS
-    const smsSent = await sendVerificationCodeSMS(sanitizedPhone, smsCode);
-
-    if (!smsSent) {
-      console.error("⚠️  Error enviando SMS de verificación");
-    }
-
-    // 17. Registrar intento de registro exitoso
+    // 18. Registrar intento de registro exitoso
     await prisma.loginAttempt.create({
       data: {
         userId: newUser.id,
@@ -221,16 +247,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       },
     });
 
-    // 18. Responder con éxito
+    // 19. Responder con éxito
     res.status(201).json({
       success: true,
       message:
-        "Usuario registrado. Hemos enviado códigos de verificación a tu email y teléfono.",
+        "Usuario registrado. Hemos enviado un código de verificación a tu email.",
       data: {
         email: sanitizedEmail,
         phone: sanitizedPhone,
         emailSent,
-        smsSent,
       },
     });
   } catch (error: any) {
@@ -243,7 +268,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * VERIFICAR REGISTRO - POST /api/auth/verify-registration
+ * VERIFICAR REGISTRO
  */
 export const verifyRegistration = async (
   req: Request,
@@ -1143,6 +1168,359 @@ export const forgotPassword = async (
   }
 };
 
+/**
+ * INICIAR RECUPERACIÓN CON PREGUNTA SECRETA - POST /api/auth/forgot-password-security
+ */
+export const forgotPasswordWithSecurity = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { email }: { email: string } = req.body;
+
+    // 1. Validar que el email exista
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        error: "El email es obligatorio",
+      });
+      return;
+    }
+
+    // 2. Sanitizar email
+    const sanitizedEmail = sanitizeEmail(email);
+
+    // 3. Validar formato de email
+    if (!isValidEmail(sanitizedEmail)) {
+      res.status(400).json({
+        success: false,
+        error: "El formato del email es inválido",
+      });
+      return;
+    }
+
+    // 4. Buscar usuario por email
+    const user = await prisma.user.findUnique({
+      where: { email: sanitizedEmail },
+      select: {
+        id: true,
+        email: true,
+        securityQuestion: true,
+        securityAnswer: true,
+        securityAnswerBlockedUntil: true,
+      },
+    });
+
+    // 5. Si no existe, responder mensaje genérico (NO revelar que no existe)
+    if (!user) {
+      res.status(200).json({
+        success: true,
+        message:
+          "Si el email está registrado y tiene pregunta de seguridad configurada, podrás responderla.",
+        data: {
+          hasSecurityQuestion: false, // No revelar si existe
+        },
+      });
+      return;
+    }
+
+    // 6. Verificar si tiene pregunta de seguridad configurada
+    if (!user.securityQuestion || !user.securityAnswer) {
+      res.status(200).json({
+        success: true,
+        message:
+          "Si el email está registrado y tiene pregunta de seguridad configurada, podrás responderla.",
+        data: {
+          hasSecurityQuestion: false,
+        },
+      });
+      return;
+    }
+
+    // 7. Verificar si hay bloqueo de intentos de respuesta
+    if (
+      user.securityAnswerBlockedUntil &&
+      new Date() < user.securityAnswerBlockedUntil
+    ) {
+      const timeLeft = Math.ceil(
+        (user.securityAnswerBlockedUntil.getTime() - Date.now()) / 1000 / 60
+      );
+
+      res.status(403).json({
+        success: false,
+        error: `Demasiados intentos fallidos. Intenta nuevamente en ${timeLeft} minutos.`,
+        isBlocked: true,
+      });
+      return;
+    }
+
+    // 8. Si el bloqueo ya expiró, limpiarlo
+    if (
+      user.securityAnswerBlockedUntil &&
+      new Date() >= user.securityAnswerBlockedUntil
+    ) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          securityAnswerAttempts: 0,
+          securityAnswerBlockedUntil: null,
+        },
+      });
+    }
+
+    // 9. Generar token temporal para siguiente paso
+    const tempToken = generateTemporaryToken(
+      {
+        userId: user.id,
+        purpose: "SECURITY_QUESTION",
+      },
+      "10m"
+    );
+
+    // 10. Obtener el texto de la pregunta desde SECURITY_QUESTIONS
+    const { SECURITY_QUESTIONS } = await import("../types");
+    const questionData = SECURITY_QUESTIONS.find(
+      (q) => q.id === user.securityQuestion
+    );
+    const questionText = questionData
+      ? questionData.question
+      : user.securityQuestion;
+
+    console.log(
+      `Pregunta de seguridad solicitada para: ${maskEmail(sanitizedEmail)}`
+    );
+
+    // 11. Responder con la pregunta de seguridad
+    res.status(200).json({
+      success: true,
+      message: "Responde tu pregunta de seguridad para continuar.",
+      data: {
+        hasSecurityQuestion: true,
+        tempToken,
+        securityQuestion: questionText,
+        email: sanitizedEmail,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error en recuperación con pregunta secreta:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al solicitar pregunta de seguridad",
+    });
+  }
+};
+
+/**
+ * VERIFICAR RESPUESTA DE PREGUNTA SECRETA - POST /api/auth/verify-security-answer
+ */
+export const verifySecurityAnswer = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { tempToken, answer }: { tempToken: string; answer: string } =
+      req.body;
+
+    // 1. Validar que todos los campos existan
+    if (!tempToken || !answer) {
+      res.status(400).json({
+        success: false,
+        error: "Token y respuesta son obligatorios",
+      });
+      return;
+    }
+
+    // 2. Validar formato de respuesta
+    const { isValidSecurityAnswer, sanitizeSecurityAnswer } = await import(
+      "../utils/validators"
+    );
+
+    if (!isValidSecurityAnswer(answer)) {
+      res.status(400).json({
+        success: false,
+        error: "La respuesta debe tener entre 2 y 100 caracteres",
+      });
+      return;
+    }
+
+    // 3. Verificar token temporal
+    const decoded = verifyTemporaryToken(tempToken);
+
+    if (!decoded || decoded.purpose !== "SECURITY_QUESTION") {
+      res.status(401).json({
+        success: false,
+        error: "Token inválido o expirado",
+      });
+      return;
+    }
+
+    // 4. Buscar usuario
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        securityAnswer: true,
+        securityAnswerAttempts: true,
+        securityAnswerBlockedUntil: true,
+      },
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        error: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // 5. Verificar si la cuenta está bloqueada
+    if (
+      user.securityAnswerBlockedUntil &&
+      new Date() < user.securityAnswerBlockedUntil
+    ) {
+      const timeLeft = Math.ceil(
+        (user.securityAnswerBlockedUntil.getTime() - Date.now()) / 1000 / 60
+      );
+
+      res.status(403).json({
+        success: false,
+        error: `Demasiados intentos fallidos. Intenta nuevamente en ${timeLeft} minutos.`,
+        isBlocked: true,
+      });
+      return;
+    }
+
+    // 6. Sanitizar respuesta del usuario
+    const sanitizedAnswer = sanitizeSecurityAnswer(answer);
+
+    // 7. Verificar respuesta con bcrypt
+    const isAnswerValid = await verifyPassword(
+      sanitizedAnswer,
+      user.securityAnswer!
+    );
+
+    // 8. Si la respuesta es INCORRECTA
+    if (!isAnswerValid) {
+      const newAttempts = user.securityAnswerAttempts + 1;
+
+      // Si alcanza 3 intentos, bloquear por 10 minutos
+      if (newAttempts >= 3) {
+        const blockedUntil = new Date(Date.now() + 10 * 60 * 1000);
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            securityAnswerAttempts: newAttempts,
+            securityAnswerBlockedUntil: blockedUntil,
+          },
+        });
+
+        securityLogger.logFailedLogin(
+          user.email,
+          req.ip || "unknown",
+          "Pregunta de seguridad - Bloqueado"
+        );
+
+        res.status(403).json({
+          success: false,
+          error:
+            "Demasiados intentos fallidos. Cuenta bloqueada temporalmente por 10 minutos.",
+          isBlocked: true,
+        });
+        return;
+      }
+
+      // Incrementar intentos sin bloquear
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          securityAnswerAttempts: newAttempts,
+        },
+      });
+
+      securityLogger.logFailedLogin(
+        user.email,
+        req.ip || "unknown",
+        "Respuesta de pregunta de seguridad incorrecta"
+      );
+
+      res.status(401).json({
+        success: false,
+        error: "Respuesta incorrecta",
+        attemptsLeft: 3 - newAttempts,
+      });
+      return;
+    }
+
+    // 9. Si la respuesta es CORRECTA
+    // Resetear intentos fallidos
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        securityAnswerAttempts: 0,
+        securityAnswerBlockedUntil: null,
+      },
+    });
+
+    // 10. Generar código de recuperación (igual que el flujo de código actual)
+    const recoveryCode = generateVerificationCode();
+    const hashedCode = await hashText(recoveryCode);
+    const codeExpiration = generateCodeExpiration(5); // 5 minutos
+
+    // 11. Guardar código en BD
+    await prisma.verificationCode.create({
+      data: {
+        userId: user.id,
+        code: hashedCode,
+        type: "PASSWORD_RESET",
+        expiresAt: codeExpiration,
+      },
+    });
+
+    // 12. Enviar código por email
+    const emailSent = await sendPasswordResetCode(user.email, recoveryCode);
+
+    if (!emailSent) {
+      console.error("Error enviando código de recuperación por email");
+    }
+
+    // 13. Generar token temporal para siguiente paso (verificar código)
+    const resetToken = generateTemporaryToken(
+      {
+        userId: user.id,
+        purpose: "PASSWORD_RESET",
+      },
+      "10m"
+    );
+
+    console.log(
+      `Pregunta de seguridad correcta. Código enviado a: ${maskEmail(
+        user.email
+      )}`
+    );
+
+    // 14. Responder con éxito y token para siguiente paso
+    res.status(200).json({
+      success: true,
+      message:
+        "Respuesta correcta. Hemos enviado un código de verificación a tu email.",
+      data: {
+        tempToken: resetToken,
+        email: user.email,
+        emailSent,
+        expiresIn: "5 minutos",
+      },
+    });
+  } catch (error: any) {
+    console.error("❌ Error verificando respuesta de seguridad:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al verificar respuesta",
+    });
+  }
+};
+
 export const resendRecoveryCode = async (
   req: Request,
   res: Response
@@ -1594,8 +1972,6 @@ export const resetPassword = async (
   }
 };
 
-// VERIFICAR ID DE RESET (ENLACE) - GET /api/auth/verify-reset-id/:id
-
 export const verifyResetToken = async (
   req: Request,
   res: Response
@@ -1701,9 +2077,7 @@ export const verifyResetToken = async (
   }
 };
 
-/**
- * CAMBIAR CONTRASEÑA CON ENLACE - POST /api/auth/reset-password-link
- */
+//CAMBIAR CONTRASEÑA CON ENLACE
 export const resetPasswordWithLink = async (
   req: Request,
   res: Response

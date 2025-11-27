@@ -51,3 +51,38 @@ export const sanitizeName = (name: string): string => {
 export const sanitizePhone = (phone: string): string => {
   return phone.trim();
 };
+
+/**
+ * Valida que la pregunta de seguridad sea válida
+ */
+export const isValidSecurityQuestion = (questionId: string): boolean => {
+  const validIds = [
+    "pet_name",
+    "birth_city",
+    "mother_maiden",
+    "first_school",
+    "childhood_friend",
+    "first_car",
+    "favorite_teacher",
+    "first_job",
+    "favorite_book",
+    "childhood_nickname",
+  ];
+  return validIds.includes(questionId);
+};
+
+/**
+ * Valida que la respuesta de seguridad tenga al menos 2 caracteres
+ */
+export const isValidSecurityAnswer = (answer: string): boolean => {
+  if (!answer || typeof answer !== "string") return false;
+  const trimmed = answer.trim();
+  return trimmed.length >= 2 && trimmed.length <= 100;
+};
+
+/**
+ * Sanitiza la respuesta de seguridad (trim + lowercase para comparación)
+ */
+export const sanitizeSecurityAnswer = (answer: string): string => {
+  return answer.trim().toLowerCase();
+};
