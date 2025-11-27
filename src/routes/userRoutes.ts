@@ -42,7 +42,7 @@ router.post("/refresh-token", authenticate, refreshToken);
 router.get("/admin-only", authenticate, requireAdmin, (req, res) => {
   res.json({
     success: true,
-    message: "✅ Acceso autorizado: Eres administrador",
+    message: "Acceso autorizado: Eres administrador",
     data: {
       role: "ADMIN",
     },
@@ -58,7 +58,7 @@ router.get("/admin-only", authenticate, requireAdmin, (req, res) => {
 router.get("/client-only", authenticate, requireCliente, (req, res) => {
   res.json({
     success: true,
-    message: "✅ Acceso autorizado: Eres cliente",
+    message: "Acceso autorizado: Eres cliente",
     data: {
       role: "CLIENTE",
     },

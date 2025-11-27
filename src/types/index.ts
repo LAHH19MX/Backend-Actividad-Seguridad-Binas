@@ -40,6 +40,7 @@ export interface Resend2FADTO {
 
 export interface ForgotPasswordDTO {
   email: string;
+  method?: "code" | "link";
 }
 
 export interface VerifyRecoveryCodeDTO {
@@ -49,6 +50,13 @@ export interface VerifyRecoveryCodeDTO {
 
 export interface ResetPasswordDTO {
   resetToken: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+// NUEVO: DTO para reset con enlace
+export interface ResetPasswordWithLinkDTO {
+  tempToken: string;
   newPassword: string;
   confirmPassword: string;
 }

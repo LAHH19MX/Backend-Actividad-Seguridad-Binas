@@ -160,7 +160,7 @@ export const sendPasswordChangedConfirmation = async (
 ): Promise<boolean> => {
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #4caf50;">✅ Contraseña Cambiada</h2>
+      <h2 style="color: #4caf50;">Contraseña Cambiada</h2>
       <p>Tu contraseña ha sido cambiada exitosamente.</p>
       <p>Si no realizaste este cambio, contacta inmediatamente con soporte.</p>
       <p style="color: #999; font-size: 12px;">Fecha: ${new Date().toLocaleString()}</p>
@@ -170,6 +170,38 @@ export const sendPasswordChangedConfirmation = async (
   return await sendEmail({
     to: email,
     subject: "Contraseña Cambiada - Sistema de Autenticación",
+    htmlContent,
+  });
+};
+
+/**
+ * Envía enlace de recuperación de contraseña
+ */
+export const sendPasswordResetLink = async (
+  email: string,
+  resetId: string // 👈 Ahora recibe resetId en lugar de resetToken
+): Promise<boolean> => {
+  const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+  const resetLink = `${FRONTEND_URL}/reset-password-link?id=${resetId}`; // 👈 Cambio: id en lugar de token
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">Recuperación de Contraseña</h2>
+      <p>Has solicitado restablecer tu contraseña. Haz clic en el siguiente enlace para continuar:</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${resetLink}" 
+           style="background-color: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+          Restablecer Contraseña
+        </a>
+      </div>
+      <p style="color: #d32f2f; font-weight: bold;">⚠️ Este enlace expirará en 5 minutos.</p>
+      <p style="color: #999; font-size: 12px;">Si no solicitaste restablecer tu contraseña, ignora este mensaje.</p>
+    </div>
+  `;
+
+  return await sendEmail({
+    to: email,
+    subject: "Enlace de Recuperación de Contraseña - Sistema de Autenticación",
     htmlContent,
   });
 };

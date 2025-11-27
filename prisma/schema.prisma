@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -23,6 +23,13 @@ model User {
   isBlocked       Boolean  @default(false)
   blockedUntil    DateTime?
   failedAttempts  Int      @default(0)
+  
+  resetToken      String?   // Token privado
+  resetId         String?   // ID público
+  resetTokenExpiry DateTime? // Fecha de expiración del token (5 minutos)
+  recoveryAttempts Int      @default(0) 
+  recoveryBlockedUntil DateTime? // Bloqueo temporal por exceso de intentos
+  
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

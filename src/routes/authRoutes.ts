@@ -9,6 +9,8 @@ import {
   resendRecoveryCode,
   verifyRecoveryCode,
   resetPassword,
+  verifyResetToken,
+  resetPasswordWithLink,
 } from "../controllers/authController";
 import {
   registerLimiter,
@@ -85,5 +87,19 @@ router.post("/reset-password", resetPassword);
 // router.post('/reset-password', resetPassword);
 // router.post('/logout', logout);
 // router.post('/refresh-token', refreshToken);
+
+/**
+ * @route   GET /api/auth/verify-reset-id/:id
+ * @desc    Verificar si un token de reset es válido
+ * @access  Public
+ */
+router.get("/verify-reset-id/:id", verifyResetToken);
+
+/**
+ * @route   POST /api/auth/reset-password-link
+ * @desc    Cambiar contraseña usando enlace con token
+ * @access  Public
+ */
+router.post("/reset-password-link", resetPasswordWithLink);
 
 export default router;

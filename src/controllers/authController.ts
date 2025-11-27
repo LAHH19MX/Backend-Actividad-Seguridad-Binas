@@ -1,6 +1,11 @@
 import { Request, Response } from "express";
 import prisma from "../config/database";
-import { RegisterDTO, VerifyRegistrationDTO, ApiResponse } from "../types";
+import {
+  RegisterDTO,
+  VerifyRegistrationDTO,
+  ApiResponse,
+  ResetPasswordWithLinkDTO,
+} from "../types";
 import {
   isValidEmail,
   isValidPhone,
@@ -41,6 +46,7 @@ import {
 } from "../types/index";
 import { generateTemporaryToken, verifyTemporaryToken } from "../utils/jwt";
 import { verifyPassword, compareHash } from "../utils/encryption";
+import crypto from "crypto";
 
 const maskEmail = (email: string): string => {
   const [local, domain] = email.split("@");
@@ -436,9 +442,52 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     // 6. Verificar si usuario está verificado
     if (!user.isVerified) {
-      res.status(401).json({
+      // Invalidar códigos anteriores
+      await prisma.verificationCode.updateMany({
+        where: {
+          userId: user.id,
+          type: "REGISTRATION_EMAIL",
+          isUsed: false,
+        },
+        data: { isUsed: true },
+      });
+
+      // Generar nuevo código para email
+      const emailCode = generateVerificationCode();
+      const hashedEmailCode = await hashText(emailCode);
+      const emailCodeExpiration = generateCodeExpiration(5); // 5 minutos
+
+      // Guardar código en BD
+      await prisma.verificationCode.create({
+        data: {
+          userId: user.id,
+          code: hashedEmailCode,
+          type: "REGISTRATION_EMAIL",
+          expiresAt: emailCodeExpiration,
+        },
+      });
+
+      // Enviar código por email
+      const emailSent = await sendVerificationCode(sanitizedEmail, emailCode);
+
+      if (!emailSent) {
+        console.error("Error enviando código de verificación");
+      }
+
+      console.log(
+        `Cuenta no verificada. Código reenviado a: ${maskEmail(sanitizedEmail)}`
+      );
+
+      res.status(403).json({
         success: false,
-        error: "Cuenta no verificada. Revisa tu email y teléfono.",
+        error:
+          "Cuenta no verificada. Hemos enviado un nuevo código a tu email.",
+        requiresVerification: true,
+        data: {
+          email: sanitizedEmail,
+          phone: user.phone,
+          emailSent,
+        },
       });
       return;
     }
@@ -909,7 +958,8 @@ export const forgotPassword = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { email }: ForgotPasswordDTO = req.body;
+    const { email, method }: { email: string; method?: "code" | "link" } =
+      req.body;
 
     // 1. Validar que el email exista
     if (!email) {
@@ -920,10 +970,21 @@ export const forgotPassword = async (
       return;
     }
 
-    // 2. Sanitizar email
+    // 2. Validar método (por defecto "code" para mantener compatibilidad)
+    const recoveryMethod = method || "code";
+
+    if (recoveryMethod !== "code" && recoveryMethod !== "link") {
+      res.status(400).json({
+        success: false,
+        error: "Método inválido. Usa 'code' o 'link'",
+      });
+      return;
+    }
+
+    // 3. Sanitizar email
     const sanitizedEmail = sanitizeEmail(email);
 
-    // 3. Validar formato de email
+    // 4. Validar formato de email
     if (!isValidEmail(sanitizedEmail)) {
       res.status(400).json({
         success: false,
@@ -932,86 +993,149 @@ export const forgotPassword = async (
       return;
     }
 
-    // 4. Buscar usuario por email
+    // 5. Buscar usuario por email
     const user = await prisma.user.findUnique({
       where: { email: sanitizedEmail },
     });
 
-    // 5. Si no existe, responder éxito (seguridad: no revelar si email existe)
+    // 6. Si no existe, responder éxito (seguridad: no revelar si email existe)
     if (!user) {
       res.status(200).json({
         success: true,
         message:
-          "Si el email está registrado, recibirás un código de recuperación.",
+          "Si el email está registrado, recibirás un código o enlace de recuperación.",
       });
       return;
     }
 
-    // 6. Verificar si la cuenta está bloqueada
-    const blockStatus = await checkIfBlocked(user.id);
-
-    if (blockStatus.isBlocked) {
-      const timeLeft = blockStatus.blockedUntil
-        ? Math.ceil(
-            (blockStatus.blockedUntil.getTime() - Date.now()) / 1000 / 60
-          )
-        : 10;
+    // 7. Verificar si hay bloqueo de recuperación (separado del bloqueo de login)
+    if (user.recoveryBlockedUntil && new Date() < user.recoveryBlockedUntil) {
+      const timeLeft = Math.ceil(
+        (user.recoveryBlockedUntil.getTime() - Date.now()) / 1000 / 60
+      );
 
       res.status(403).json({
         success: false,
-        error: `Cuenta bloqueada temporalmente. Intenta nuevamente en ${timeLeft} minutos.`,
+        error: `Demasiados intentos de recuperación. Intenta nuevamente en ${timeLeft} minutos.`,
+        isBlocked: true,
       });
       return;
     }
 
-    // 7. Generar código de recuperación
-    const recoveryCode = generateVerificationCode();
-    const hashedCode = await hashText(recoveryCode);
-    const codeExpiration = generateCodeExpiration(5); // 5 minutos
-
-    // 8. Guardar código en BD
-    await prisma.verificationCode.create({
-      data: {
-        userId: user.id,
-        code: hashedCode,
-        type: "PASSWORD_RESET",
-        expiresAt: codeExpiration,
-      },
-    });
-
-    // 9. Enviar código por EMAIL (por defecto)
-    const emailSent = await sendPasswordResetCode(sanitizedEmail, recoveryCode);
-
-    if (!emailSent) {
-      console.error("⚠️  Error enviando código de recuperación por email");
+    // 8. Si el bloqueo ya expiró, limpiarlo
+    if (user.recoveryBlockedUntil && new Date() >= user.recoveryBlockedUntil) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          recoveryAttempts: 0,
+          recoveryBlockedUntil: null,
+        },
+      });
     }
 
-    // 10. Generar token temporal para siguiente paso
-    const tempToken = generateTemporaryToken(
-      {
-        userId: user.id,
-        purpose: "PASSWORD_RESET",
-      },
-      "10m" // Token válido por 10 minutos
-    );
+    // 9A. MÉTODO: CÓDIGO (flujo actual, sin cambios)
+    if (recoveryMethod === "code") {
+      // Generar código de recuperación
+      const recoveryCode = generateVerificationCode();
+      const hashedCode = await hashText(recoveryCode);
+      const codeExpiration = generateCodeExpiration(5); // 5 minutos
 
-    console.log(
-      `Código de recuperación enviado a: ${maskEmail(sanitizedEmail)}`
-    );
+      // Guardar código en BD
+      await prisma.verificationCode.create({
+        data: {
+          userId: user.id,
+          code: hashedCode,
+          type: "PASSWORD_RESET",
+          expiresAt: codeExpiration,
+        },
+      });
 
-    // 11. Responder con éxito
-    res.status(200).json({
-      success: true,
-      message: "Código de recuperación enviado a tu email.",
-      data: {
-        tempToken,
-        email: sanitizedEmail,
-        phone: user.phone,
-        emailSent,
-      },
-    });
+      // Enviar código por EMAIL
+      const emailSent = await sendPasswordResetCode(
+        sanitizedEmail,
+        recoveryCode
+      );
+
+      if (!emailSent) {
+        console.error("⚠️  Error enviando código de recuperación por email");
+      }
+
+      // Generar token temporal para siguiente paso
+      const tempToken = generateTemporaryToken(
+        {
+          userId: user.id,
+          purpose: "PASSWORD_RESET",
+        },
+        "10m"
+      );
+
+      console.log(
+        `Código de recuperación enviado a: ${maskEmail(sanitizedEmail)}`
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "Código de recuperación enviado a tu email.",
+        data: {
+          method: "code",
+          tempToken,
+          email: sanitizedEmail,
+          phone: user.phone,
+          emailSent,
+        },
+      });
+      return;
+    }
+
+    // 9B. MÉTODO: ENLACE (MODIFICADO)
+    if (recoveryMethod === "link") {
+      // Generar token privado (se guarda en BD, NO se envía)
+      const resetToken = crypto.randomBytes(32).toString("hex");
+
+      // Generar ID público (se envía en el enlace)
+      const resetId = crypto.randomBytes(16).toString("hex"); // 👈 NUEVO
+
+      const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
+
+      // Guardar ambos en BD
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetToken, // Token privado
+          resetId, // ID público 👈 NUEVO
+          resetTokenExpiry,
+        },
+      });
+
+      // Enviar enlace con resetId (NO con resetToken) 👈 CAMBIO
+      const { sendPasswordResetLink } = await import(
+        "../services/emailService"
+      );
+      const emailSent = await sendPasswordResetLink(sanitizedEmail, resetId);
+
+      if (!emailSent) {
+        console.error("⚠️  Error enviando enlace de recuperación por email");
+      }
+
+      console.log(
+        `Enlace de recuperación enviado a: ${maskEmail(sanitizedEmail)}`
+      );
+
+      res.status(200).json({
+        success: true,
+        message:
+          "Enlace de recuperación enviado a tu email. Válido por 5 minutos.",
+        data: {
+          method: "link",
+          email: sanitizedEmail,
+          emailSent,
+          expiresIn: "5 minutos",
+        },
+      });
+      return;
+    }
   } catch (error: any) {
-    console.error("❌ Error en recuperación de contraseña:", error);
+    console.error("Error en recuperación de contraseña:", error);
     res.status(500).json({
       success: false,
       error: "Error al solicitar recuperación de contraseña",
@@ -1463,6 +1587,330 @@ export const resetPassword = async (
     });
   } catch (error: any) {
     console.error("❌ Error en resetPassword:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al cambiar contraseña",
+    });
+  }
+};
+
+// VERIFICAR ID DE RESET (ENLACE) - GET /api/auth/verify-reset-id/:id
+
+export const verifyResetToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { id: resetId } = req.params;
+
+    console.log("🔍 Params recibidos:", req.params); // 👈 AGREGAR ESTO
+    console.log("🔍 URL completa:", req.url);
+
+    console.log("🔍 resetId recibido:", resetId);
+
+    // 1. Validar que el resetId exista
+    if (!resetId) {
+      res.status(400).json({
+        success: false,
+        error: "ID es obligatorio",
+      });
+      return;
+    }
+
+    // 2. Buscar usuario con ese resetId (NO con resetToken)
+    const user = await prisma.user.findFirst({
+      where: {
+        resetId: resetId, // 👈 Buscar por resetId público
+      },
+    });
+
+    // 3. Si no existe el usuario o el resetId
+    if (!user || !user.resetId || !user.resetToken || !user.resetTokenExpiry) {
+      res.status(400).json({
+        success: false,
+        error: "Enlace inválido o expirado",
+        isValid: false,
+      });
+      return;
+    }
+
+    // 4. Verificar si hay bloqueo de recuperación
+    if (user.recoveryBlockedUntil && new Date() < user.recoveryBlockedUntil) {
+      const timeLeft = Math.ceil(
+        (user.recoveryBlockedUntil.getTime() - Date.now()) / 1000 / 60
+      );
+
+      res.status(403).json({
+        success: false,
+        error: `Demasiados intentos de recuperación. Intenta nuevamente en ${timeLeft} minutos.`,
+        isBlocked: true,
+      });
+      return;
+    }
+
+    // 5. Verificar si el token expiró (5 minutos)
+    const now = new Date();
+    if (now > user.resetTokenExpiry) {
+      // Limpiar token expirado
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetToken: null,
+          resetId: null, // 👈 Limpiar también resetId
+          resetTokenExpiry: null,
+        },
+      });
+
+      res.status(400).json({
+        success: false,
+        error: "El enlace ha expirado. Solicita uno nuevo.",
+        isValid: false,
+      });
+      return;
+    }
+
+    // 6. Generar token temporal para el siguiente paso (NO exponer resetToken)
+    const tempToken = generateTemporaryToken(
+      {
+        userId: user.id,
+        resetId: resetId, // 👈 Incluir resetId para validación
+        purpose: "PASSWORD_RESET_LINK",
+      },
+      "10m" // Válido por 10 minutos
+    );
+
+    console.log(`Enlace válido para: ${maskEmail(user.email)}`);
+
+    // 7. Responder con tempToken (NO con resetToken)
+    res.status(200).json({
+      success: true,
+      message: "Enlace válido. Puedes cambiar tu contraseña.",
+      data: {
+        isValid: true,
+        tempToken, // 👈 Token temporal de sesión
+        email: user.email,
+        expiresAt: user.resetTokenExpiry,
+      },
+    });
+  } catch (error: any) {
+    console.error("❌ Error verificando enlace de reset:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al verificar enlace",
+    });
+  }
+};
+
+/**
+ * CAMBIAR CONTRASEÑA CON ENLACE - POST /api/auth/reset-password-link
+ */
+export const resetPasswordWithLink = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const {
+      tempToken,
+      newPassword,
+      confirmPassword,
+    }: ResetPasswordWithLinkDTO = req.body;
+
+    // 1. Validar que todos los campos existan
+    if (!tempToken || !newPassword || !confirmPassword) {
+      res.status(400).json({
+        success: false,
+        error: "Todos los campos son obligatorios",
+      });
+      return;
+    }
+
+    // 2. Validar que las contraseñas coincidan
+    if (newPassword !== confirmPassword) {
+      res.status(400).json({
+        success: false,
+        error: "Las contraseñas no coinciden",
+      });
+      return;
+    }
+
+    // 3. Validar fortaleza de la nueva contraseña
+    if (!isValidPassword(newPassword)) {
+      res.status(400).json({
+        success: false,
+        error: getPasswordErrorMessage(),
+      });
+      return;
+    }
+
+    // 4. Verificar tempToken (NO resetToken directamente)
+    const decoded = verifyTemporaryToken(tempToken);
+
+    if (!decoded || decoded.purpose !== "PASSWORD_RESET_LINK") {
+      res.status(401).json({
+        success: false,
+        error: "Sesión inválida o expirada",
+      });
+      return;
+    }
+
+    // 5. Buscar usuario y verificar resetId
+    const user = await prisma.user.findFirst({
+      where: {
+        id: decoded.userId,
+        resetId: decoded.resetId,
+      },
+    });
+
+    // 6. Si no existe o resetId no coincide
+    if (!user || !user.resetToken || !user.resetTokenExpiry) {
+      res.status(400).json({
+        success: false,
+        error: "Enlace inválido o ya usado",
+      });
+      return;
+    }
+
+    // 7. Verificar si hay bloqueo de recuperación
+    if (user.recoveryBlockedUntil && new Date() < user.recoveryBlockedUntil) {
+      const timeLeft = Math.ceil(
+        (user.recoveryBlockedUntil.getTime() - Date.now()) / 1000 / 60
+      );
+
+      res.status(403).json({
+        success: false,
+        error: `Demasiados intentos de recuperación. Intenta nuevamente en ${timeLeft} minutos.`,
+        isBlocked: true,
+      });
+      return;
+    }
+
+    // 8. Verificar si el token expiró
+    const now = new Date();
+    if (now > user.resetTokenExpiry) {
+      // Incrementar intentos fallidos
+      const newAttempts = user.recoveryAttempts + 1;
+
+      if (newAttempts >= 3) {
+        // Bloquear por 10 minutos
+        const blockedUntil = new Date(Date.now() + 10 * 60 * 1000);
+
+        await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            recoveryAttempts: newAttempts,
+            recoveryBlockedUntil: blockedUntil,
+            resetToken: null,
+            resetId: null, // 👈 Limpiar resetId
+            resetTokenExpiry: null,
+          },
+        });
+
+        res.status(403).json({
+          success: false,
+          error:
+            "Demasiados intentos con enlaces expirados. Cuenta bloqueada temporalmente por 10 minutos.",
+          isBlocked: true,
+        });
+        return;
+      }
+
+      // Incrementar intentos sin bloquear
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          recoveryAttempts: newAttempts,
+          resetToken: null,
+          resetId: null, // 👈 Limpiar resetId
+          resetTokenExpiry: null,
+        },
+      });
+
+      res.status(400).json({
+        success: false,
+        error: "El enlace ha expirado. Solicita uno nuevo.",
+        attemptsLeft: 3 - newAttempts,
+      });
+      return;
+    }
+
+    // 9. Verificar que la nueva contraseña no sea igual a la anterior
+    const isSamePassword = await verifyPassword(newPassword, user.password);
+
+    if (isSamePassword) {
+      res.status(400).json({
+        success: false,
+        error: "La nueva contraseña no puede ser igual a la anterior",
+      });
+      return;
+    }
+
+    // 10. Encriptar nueva contraseña
+    const hashedPassword = await hashPassword(newPassword);
+
+    // 11. Actualizar contraseña y limpiar tokens
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetId: null, // 👈 Limpiar resetId
+        resetTokenExpiry: null,
+        recoveryAttempts: 0,
+        recoveryBlockedUntil: null,
+        failedAttempts: 0,
+        isBlocked: false,
+        blockedUntil: null,
+      },
+    });
+
+    // 12. Invalidar todos los códigos de verificación del usuario
+    await prisma.verificationCode.updateMany({
+      where: {
+        userId: user.id,
+        isUsed: false,
+      },
+      data: { isUsed: true },
+    });
+
+    // 13. Enviar email de confirmación
+    const { sendPasswordChangedConfirmation } = await import(
+      "../services/emailService"
+    );
+    const emailSent = await sendPasswordChangedConfirmation(user.email);
+
+    if (!emailSent) {
+      console.error("⚠️  Error enviando email de confirmación");
+    }
+
+    // 14. Registrar evento de seguridad
+    securityLogger.logPasswordReset(user.email);
+
+    // 15. Registrar en LoginAttempt
+    await prisma.loginAttempt.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        success: true,
+        failReason: "Password reset con enlace exitoso",
+      },
+    });
+
+    console.log(`✅ Contraseña cambiada con enlace: ${maskEmail(user.email)}`);
+
+    // 16. Responder con éxito
+    res.status(200).json({
+      success: true,
+      message:
+        "Contraseña cambiada exitosamente. Ahora puedes iniciar sesión con tu nueva contraseña.",
+      data: {
+        email: user.email,
+        passwordChanged: true,
+      },
+    });
+  } catch (error: any) {
+    console.error("❌ Error en resetPasswordWithLink:", error);
     res.status(500).json({
       success: false,
       error: "Error al cambiar contraseña",
