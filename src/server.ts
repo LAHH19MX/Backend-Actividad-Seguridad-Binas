@@ -52,8 +52,7 @@ app.use(cookieParser());
 // CORS
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    // "https://frontend-actividad-seguridad-binas.vercel.app",
+    origin: "https://frontend-actividad-seguridad-binas.vercel.app",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     allowedHeaders: ["Content-Type", "Authorization"],
