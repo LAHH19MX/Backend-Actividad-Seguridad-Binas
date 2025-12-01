@@ -181,7 +181,7 @@ export const sendPasswordResetLink = async (
   email: string,
   resetId: string // 👈 Ahora recibe resetId en lugar de resetToken
 ): Promise<boolean> => {
-  const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
+  const FRONTEND_URL = "https://frontend-actividad-seguridad-binas.vercel.app";
   const resetLink = `${FRONTEND_URL}/reset-password-link?id=${resetId}`;
 
   const htmlContent = `
