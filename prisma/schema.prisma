@@ -33,6 +33,7 @@ model User {
   securityAnswer      String?   // Respuesta 
   securityAnswerAttempts Int   @default(0) // Intentos fallidos de respuesta
   securityAnswerBlockedUntil DateTime? // Bloqueo por intentos fallidos
+  sessions          Session[]
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -77,4 +78,23 @@ model LoginAttempt {
   user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("login_attempts")
+}
+
+model Session {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jti         String   @unique  // JWT ID único
+  token       String   @unique  // Hash del JWT completo
+  deviceInfo  String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  isRevoked   Boolean  @default(false)
+  
+  @@index([userId])
+  @@index([jti])
+  @@index([isRevoked])
+  @@map("sessions")
 }

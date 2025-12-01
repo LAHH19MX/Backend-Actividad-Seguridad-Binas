@@ -1,5 +1,7 @@
 import { Response } from "express";
 import { AuthRequest } from "../types";
+import { verifyToken } from "../utils/jwt";
+import { revokeSession, revokeAllUserSessions } from "../utils/sessionHelper";
 import prisma from "../config/database";
 
 const maskEmail = (email: string): string => {
@@ -15,17 +17,13 @@ const maskEmail = (email: string): string => {
 /**
  * GET /api/user/profile
  * Obtener perfil del usuario autenticado
- * @access Private (requiere JWT)
  */
 export const getProfile = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
-    // El usuario ya está autenticado gracias al middleware
-    const userId = req.user?.userId;
-
-    if (!userId) {
+    if (!req.user) {
       res.status(401).json({
         success: false,
         error: "Usuario no autenticado",
@@ -35,7 +33,7 @@ export const getProfile = async (
 
     // Buscar usuario en BD
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: req.user.userId },
       select: {
         id: true,
         email: true,
@@ -44,7 +42,6 @@ export const getProfile = async (
         role: true,
         isVerified: true,
         createdAt: true,
-        updatedAt: true,
       },
     });
 
@@ -56,11 +53,8 @@ export const getProfile = async (
       return;
     }
 
-    console.log(`Perfil consultado: ${maskEmail(user.email)}`);
-
     res.status(200).json({
       success: true,
-      message: "Perfil obtenido exitosamente",
       data: { user },
     });
   } catch (error: any) {
@@ -73,36 +67,90 @@ export const getProfile = async (
 };
 
 /**
- * POST /api/auth/logout
- * Cerrar sesión (invalidar token del lado del cliente)
- * @access Private (requiere JWT)
+ * POST /api/user/logout
+ * Cerrar sesión (revoca la sesión actual)
  */
 export const logout = async (
   req: AuthRequest,
   res: Response
 ): Promise<void> => {
   try {
-    const email = req.user?.email;
+    const token = req.cookies.auth_token;
 
-    console.log(`Logout exitoso: ${email ? maskEmail(email) : "unknown"}`);
+    if (!token) {
+      res.status(400).json({
+        success: false,
+        error: "No hay sesión activa",
+      });
+      return;
+    }
 
-    // En una implementación real, aquí podrías:
-    // - Agregar el token a una blacklist en Redis
-    // - Incrementar tokenVersion en el usuario
-    // - Registrar el evento de logout
+    // Decodificar token para obtener jti
+    const decoded = verifyToken(token);
+
+    if (decoded && decoded.jti) {
+      // Revocar sesión en BD
+      await revokeSession(decoded.jti);
+    }
+
+    // Eliminar cookie
+    res.clearCookie("auth_token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
 
     res.status(200).json({
       success: true,
       message: "Sesión cerrada exitosamente",
-      data: {
-        email,
-      },
     });
   } catch (error: any) {
     console.error("Error en logout:", error);
     res.status(500).json({
       success: false,
       error: "Error al cerrar sesión",
+    });
+  }
+};
+
+/**
+ * POST /api/user/logout-all
+ * Cerrar sesión en TODOS los dispositivos
+ */
+export const logoutAll = async (
+  req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        error: "No autenticado",
+      });
+      return;
+    }
+
+    // Revocar TODAS las sesiones del usuario
+    await revokeAllUserSessions(req.user.userId);
+
+    // Eliminar cookie actual
+    res.clearCookie("auth_token", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      path: "/",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Todas las sesiones cerradas exitosamente",
+    });
+  } catch (error: any) {
+    console.error("Error en logoutAll:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al cerrar todas las sesiones",
     });
   }
 };

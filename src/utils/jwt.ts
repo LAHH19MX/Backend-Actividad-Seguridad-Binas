@@ -1,4 +1,7 @@
 import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
+import prisma from "../config/database";
+import crypto from "crypto";
 
 const JWT_SECRET =
   process.env.JWT_SECRET || "default-secret-change-in-production";
@@ -7,6 +10,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: string;
+  jti: string; // 👈 AGREGADO
 }
 
 export interface TemporaryTokenPayload {
@@ -20,15 +24,54 @@ export interface TemporaryTokenPayload {
 }
 
 /**
- * Genera un JWT completo (para autenticación)
+ * Genera un JWT completo Y lo guarda en BD
  * @param payload - Datos del usuario (userId, email, role)
- * @returns string - Token JWT
+ * @param deviceInfo - Info del dispositivo/navegador
+ * @param ipAddress - IP del usuario
+ * @returns Promise<string> - Token JWT
  */
-export const generateToken = (payload: JWTPayload): string => {
-  return jwt.sign(payload, JWT_SECRET, {
-    expiresIn: "15m",
-    algorithm: "HS256",
-  } as jwt.SignOptions);
+export const generateToken = async (
+  payload: { userId: string; email: string; role: string },
+  deviceInfo?: string,
+  ipAddress?: string
+): Promise<string> => {
+  // 1. Generar JTI único
+  const jti = uuidv4();
+
+  // 2. Crear JWT con JTI
+  const token = jwt.sign(
+    {
+      userId: payload.userId,
+      email: payload.email,
+      role: payload.role,
+      jti,
+    },
+    JWT_SECRET,
+    {
+      expiresIn: "15m",
+      algorithm: "HS256",
+    } as jwt.SignOptions
+  );
+
+  // 3. Hashear el token para guardarlo en BD
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  // 4. Calcular fecha de expiración
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  // 5. Guardar sesión en BD
+  await prisma.session.create({
+    data: {
+      userId: payload.userId,
+      jti,
+      token: tokenHash,
+      deviceInfo: deviceInfo || null,
+      ipAddress: ipAddress || null,
+      expiresAt,
+    },
+  });
+
+  return token;
 };
 
 /**

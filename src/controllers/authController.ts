@@ -930,15 +930,46 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
       data: { isUsed: true },
     });
 
-    // 12. Generar JWT completo con rol
+    // 12. Generar JWT completo con sesión en BD 👈 MODIFICADO
     const { generateToken } = await import("../utils/jwt");
-    const jwtToken = generateToken({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
+    const deviceInfo = req.headers["user-agent"] || "Unknown";
+    const ipAddress =
+      req.ip || (req.headers["x-forwarded-for"] as string) || "Unknown";
+
+    const jwtToken = await generateToken(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+      },
+      deviceInfo,
+      ipAddress
+    );
+
+    // 13. Configurar cookie con JWT
+    const isProduction = process.env.NODE_ENV === "production";
+
+    res.cookie("auth_token", jwtToken, {
+      httpOnly: true, // No accesible desde JavaScript
+      secure: isProduction, //Solo HTTPS en producción
+      sameSite: "strict", // Protección CSRF
+      maxAge: 15 * 60 * 1000,
+      path: "/",
     });
 
-    // 13. Registrar login exitoso
+    // 13.5 Generar y enviar token CSRF
+    const { generateCSRFToken } = await import("../middlewares/csrfMiddleware");
+    const csrfToken = generateCSRFToken();
+
+    res.cookie("csrf_token", csrfToken, {
+      httpOnly: false, // ❗ Debe ser false para que el frontend lo lea
+      secure: isProduction,
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000, // 24 horas
+      path: "/",
+    });
+
+    // 14. Registrar login exitoso
     await prisma.loginAttempt.create({
       data: {
         userId: user.id,
@@ -954,12 +985,11 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
 
     console.log(`Login exitoso completo: ${maskEmail(user.email)}`);
 
-    // 14. Responder con JWT + datos del usuario
+    // 15. Responder SIN el token en JSON
     res.status(200).json({
       success: true,
       message: "Login exitoso",
       data: {
-        token: jwtToken,
         user: {
           id: user.id,
           email: user.email,
@@ -1927,7 +1957,7 @@ export const resetPassword = async (
     const emailSent = await sendPasswordChangedConfirmation(user.email);
 
     if (!emailSent) {
-      console.error("⚠️  Error enviando email de confirmación");
+      console.error("Error enviando email de confirmación");
     }
 
     // 11. Registrar evento de seguridad
@@ -1960,7 +1990,7 @@ export const resetPassword = async (
       },
     });
   } catch (error: any) {
-    console.error("❌ Error en resetPassword:", error);
+    console.error("Error en resetPassword:", error);
     res.status(500).json({
       success: false,
       error: "Error al cambiar contraseña",
@@ -2048,7 +2078,7 @@ export const verifyResetToken = async (
         resetId: resetId, // 👈 Incluir resetId para validación
         purpose: "PASSWORD_RESET_LINK",
       },
-      "10m" // Válido por 10 minutos
+      "10m"
     );
 
     console.log(`Enlace válido para: ${maskEmail(user.email)}`);
@@ -2065,7 +2095,7 @@ export const verifyResetToken = async (
       },
     });
   } catch (error: any) {
-    console.error("❌ Error verificando enlace de reset:", error);
+    console.error("Error verificando enlace de reset:", error);
     res.status(500).json({
       success: false,
       error: "Error al verificar enlace",
@@ -2249,7 +2279,7 @@ export const resetPasswordWithLink = async (
     const emailSent = await sendPasswordChangedConfirmation(user.email);
 
     if (!emailSent) {
-      console.error("⚠️  Error enviando email de confirmación");
+      console.error("Error enviando email de confirmación");
     }
 
     // 14. Registrar evento de seguridad
@@ -2267,7 +2297,7 @@ export const resetPasswordWithLink = async (
       },
     });
 
-    console.log(`✅ Contraseña cambiada con enlace: ${maskEmail(user.email)}`);
+    console.log(`Contraseña cambiada con enlace: ${maskEmail(user.email)}`);
 
     // 16. Responder con éxito
     res.status(200).json({
@@ -2280,7 +2310,7 @@ export const resetPasswordWithLink = async (
       },
     });
   } catch (error: any) {
-    console.error("❌ Error en resetPasswordWithLink:", error);
+    console.error("Error en resetPasswordWithLink:", error);
     res.status(500).json({
       success: false,
       error: "Error al cambiar contraseña",

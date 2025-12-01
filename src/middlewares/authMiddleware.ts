@@ -1,21 +1,22 @@
 import { Response, NextFunction } from "express";
 import { verifyToken } from "../utils/jwt";
+import { isSessionValid } from "../utils/sessionHelper";
 import { AuthRequest } from "../types";
 
 /**
- * Middleware de autenticación JWT
- * Verifica que el usuario esté autenticado mediante un token JWT válido
+ * Middleware de autenticación JWT con cookies
+ * Verifica que el usuario esté autenticado Y que la sesión sea válida en BD
  */
-export const authenticate = (
+export const authenticate = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-): void => {
+): Promise<void> => {
   try {
-    // 1. Obtener token del header Authorization
-    const authHeader = req.headers.authorization;
+    // 1. Obtener token de las cookies
+    const token = req.cookies.auth_token;
 
-    if (!authHeader) {
+    if (!token) {
       res.status(401).json({
         success: false,
         error: "No se proporcionó token de autenticación",
@@ -23,26 +24,32 @@ export const authenticate = (
       return;
     }
 
-    // 2. Verificar formato "Bearer TOKEN"
-    const parts = authHeader.split(" ");
-
-    if (parts.length !== 2 || parts[0] !== "Bearer") {
-      res.status(401).json({
-        success: false,
-        error: "Formato de token inválido. Usa: Bearer <token>",
-      });
-      return;
-    }
-
-    const token = parts[1];
-
-    // 3. Verificar y decodificar token
+    // 2. Verificar y decodificar token JWT
     const decoded = verifyToken(token);
 
     if (!decoded) {
       res.status(401).json({
         success: false,
         error: "Token inválido o expirado",
+      });
+      return;
+    }
+
+    // 3. Verificar que la sesión exista en BD
+    const sessionValid = await isSessionValid(decoded.jti, token);
+
+    if (!sessionValid) {
+      // Limpiar cookie inválida
+      res.clearCookie("auth_token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/",
+      });
+
+      res.status(401).json({
+        success: false,
+        error: "Sesión inválida o revocada",
       });
       return;
     }
@@ -57,7 +64,7 @@ export const authenticate = (
     // 5. Continuar al siguiente middleware/controlador
     next();
   } catch (error: any) {
-    console.error("❌ Error en autenticación:", error);
+    console.error("Error en autenticación:", error);
     res.status(401).json({
       success: false,
       error: "Error al verificar token",
@@ -96,7 +103,7 @@ export const requireAdmin = (
     // Usuario es admin, continuar
     next();
   } catch (error: any) {
-    console.error("❌ Error verificando rol admin:", error);
+    console.error("Error verificando rol admin:", error);
     res.status(500).json({
       success: false,
       error: "Error al verificar permisos",
@@ -135,7 +142,7 @@ export const requireCliente = (
     // Usuario es cliente, continuar
     next();
   } catch (error: any) {
-    console.error("❌ Error verificando rol cliente:", error);
+    console.error("Error verificando rol cliente:", error);
     res.status(500).json({
       success: false,
       error: "Error al verificar permisos",
@@ -173,7 +180,7 @@ export const requireRole = (allowedRoles: string[]) => {
       // Usuario tiene rol permitido, continuar
       next();
     } catch (error: any) {
-      console.error("❌ Error verificando rol:", error);
+      console.error("Error verificando rol:", error);
       res.status(500).json({
         success: false,
         error: "Error al verificar permisos",

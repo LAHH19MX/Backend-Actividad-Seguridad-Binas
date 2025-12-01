@@ -3,12 +3,14 @@ import {
   getProfile,
   logout,
   refreshToken,
+  logoutAll,
 } from "../controllers/userController";
 import {
   authenticate,
   requireAdmin,
   requireCliente,
 } from "../middlewares/authMiddleware";
+import { validateCSRFToken } from "../middlewares/csrfMiddleware";
 
 const router = Router();
 
@@ -24,14 +26,21 @@ router.get("/profile", authenticate, getProfile);
  * @desc    Cerrar sesión
  * @access  Private (requiere JWT válido)
  */
-router.post("/logout", authenticate, logout);
+router.post("/logout", authenticate, validateCSRFToken, logout);
+
+/**
+ * @route   POST /api/user/logout-all
+ * @desc    Cerrar sesión en todos los dispositivos
+ * @access  Private (requiere JWT válido)
+ */
+router.post("/logout-all", authenticate, validateCSRFToken, logoutAll);
 
 /**
  * @route   POST /api/auth/refresh-token
  * @desc    Refrescar token JWT
  * @access  Private (requiere JWT válido)
  */
-router.post("/refresh-token", authenticate, refreshToken);
+router.post("/refresh-token", authenticate, validateCSRFToken, refreshToken);
 
 // Ejemplo de ruta solo para ADMIN
 /**

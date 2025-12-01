@@ -19,12 +19,12 @@ const PORT = process.env.PORT || 5000;
 app.use(
   cors({
     origin: [
-      // "http://localhost:3000",
-      "https://frontend-actividad-seguridad-binas.vercel.app", // Producción
+      "http://localhost:3000",
+      // "https://frontend-actividad-seguridad-binas.vercel.app",
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-CSRF-Token"],
   })
 );
 
@@ -65,16 +65,6 @@ app.use(cookieParser());
 if (process.env.NODE_ENV === "development") {
   app.use(morgan("dev"));
 }
-
-// if (process.env.NODE_ENV === "production") {
-//   app.use((req, res, next) => {
-//     if (req.header("x-forwarded-proto") !== "https") {
-//       res.redirect(`https://${req.header("host")}${req.url}`);
-//     } else {
-//       next();
-//     }
-//   });
-// }
 
 app.use(requestLogger);
 
