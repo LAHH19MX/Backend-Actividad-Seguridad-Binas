@@ -20,7 +20,7 @@ app.use(
   cors({
     origin: (origin, callback) => {
       const allowedOrigins = [
-        "http://localhost:3000",
+        // "http://localhost:3000",
         /^https:\/\/frontend-actividad-seguridad-binas.*\.vercel\.app$/,
       ];
 
