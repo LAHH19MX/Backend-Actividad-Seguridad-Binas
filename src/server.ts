@@ -14,7 +14,7 @@ import userRoutes from "./routes/userRoutes";
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 5000;
 
 app.use(
   cors({
