@@ -14,13 +14,13 @@ import userRoutes from "./routes/userRoutes";
 dotenv.config();
 
 const app: Application = express();
-const PORT = process.env.PORT || 5000;
+const PORT = parseInt(process.env.PORT || "5000", 10);
+const isProduction = process.env.NODE_ENV === "production";
 
 app.use(
   cors({
     origin: (origin, callback) => {
       const allowedOrigins = [
-        // "http://localhost:3000",
         /^https:\/\/frontend-actividad-seguridad-binas.*\.vercel\.app$/,
       ];
 
@@ -79,7 +79,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser());
 
 // Logging
-if (process.env.NODE_ENV === "development") {
+if (!isProduction) {
   app.use(morgan("dev"));
 }
 
@@ -132,30 +132,50 @@ app.use("/api/user", userRoutes);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-// Iniciar servidor
-app.listen(PORT, () => {
+// Iniciar servidor - CAMBIO PRINCIPAL AQUÍ
+const HOST = isProduction ? "0.0.0.0" : "localhost";
+
+const server = app.listen(PORT, HOST, () => {
   console.log("=================================");
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`🚀 Servidor corriendo en puerto ${PORT}`);
   console.log(`📊 Ambiente: ${process.env.NODE_ENV || "development"}`);
   console.log(`🗄️  Base de datos: Railway PostgreSQL`);
   console.log(`🔒 Seguridad: Helmet + Rate Limiting activados`);
   console.log("=================================");
-  console.log("Rutas disponibles:");
-  console.log(`  GET  http://localhost:${PORT}/api/health`);
-  console.log(`  GET  http://localhost:${PORT}/api/test-db`);
-  console.log(`  POST http://localhost:${PORT}/api/auth/register`);
-  console.log("=================================");
+  if (!isProduction) {
+    console.log("Rutas disponibles:");
+    console.log(`  GET  http://localhost:${PORT}/api/health`);
+    console.log(`  GET  http://localhost:${PORT}/api/test-db`);
+    console.log(`  POST http://localhost:${PORT}/api/auth/register`);
+    console.log("=================================");
+  }
+});
+
+// Manejo de errores del servidor
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`❌ Error: Puerto ${PORT} ya está en uso`);
+  } else {
+    console.error("❌ Error del servidor:", error);
+  }
+  process.exit(1);
 });
 
 // Manejo de cierre graceful
 process.on("SIGINT", async () => {
-  console.log("\nCerrando servidor...");
-  await prisma.$disconnect();
-  process.exit(0);
+  console.log("\n👋 SIGINT recibido. Cerrando servidor...");
+  server.close(async () => {
+    await prisma.$disconnect();
+    console.log("✅ Servidor cerrado correctamente");
+    process.exit(0);
+  });
 });
 
 process.on("SIGTERM", async () => {
-  console.log("\nCerrando servidor...");
-  await prisma.$disconnect();
-  process.exit(0);
+  console.log("\n👋 SIGTERM recibido. Cerrando servidor...");
+  server.close(async () => {
+    await prisma.$disconnect();
+    console.log("✅ Servidor cerrado correctamente");
+    process.exit(0);
+  });
 });
