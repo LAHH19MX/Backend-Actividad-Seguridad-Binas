@@ -99,7 +99,7 @@ export const logout = async (
       },
     });
   } catch (error: any) {
-    console.error("❌ Error en logout:", error);
+    console.error("Error en logout:", error);
     res.status(500).json({
       success: false,
       error: "Error al cerrar sesión",
@@ -184,7 +184,7 @@ export const refreshToken = async (
       },
     });
   } catch (error: any) {
-    console.error("❌ Error refrescando token:", error);
+    console.error("Error refrescando token:", error);
     res.status(500).json({
       success: false,
       error: "Error al refrescar token",

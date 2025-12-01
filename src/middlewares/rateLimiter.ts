@@ -27,9 +27,9 @@ export const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// Rate limiter para registro (3 registros por hora por IP)
+// Rate limiter para registro
 export const registerLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
+  windowMs: 15 * 60 * 1000,
   max: 3,
   message: {
     success: false,
@@ -39,10 +39,10 @@ export const registerLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Rate limiter para envío de códigos (10 por hora)
+// Rate limiter para envío de códigos (3 por 15 m)
 export const codeLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
+  windowMs: 15 * 60 * 1000,
+  max: 3,
   message: {
     success: false,
     error: "Demasiadas solicitudes de código. Intenta más tarde.",

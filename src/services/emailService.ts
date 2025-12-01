@@ -182,7 +182,7 @@ export const sendPasswordResetLink = async (
   resetId: string // 👈 Ahora recibe resetId en lugar de resetToken
 ): Promise<boolean> => {
   const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
-  const resetLink = `${FRONTEND_URL}/reset-password-link?id=${resetId}`; // 👈 Cambio: id en lugar de token
+  const resetLink = `${FRONTEND_URL}/reset-password-link?id=${resetId}`;
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">

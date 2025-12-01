@@ -16,11 +16,11 @@ dotenv.config();
 const app: Application = express();
 const PORT = process.env.PORT || 5000;
 
-// ⚠️ IMPORTANTE: CORS debe ir ANTES de otros middlewares
 app.use(
   cors({
     origin: [
-      "https://frontend-actividad-seguridad-binas.vercel.app", // Producción
+      "http://localhost:3000",
+      // "https://frontend-actividad-seguridad-binas.vercel.app", // Producción
     ],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],

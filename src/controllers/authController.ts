@@ -525,7 +525,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         ? Math.ceil(
             (blockStatus.blockedUntil.getTime() - Date.now()) / 1000 / 60
           )
-        : 10;
+        : 15;
 
       res.status(403).json({
         success: false,
@@ -830,7 +830,7 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
         ? Math.ceil(
             (blockStatus.blockedUntil.getTime() - Date.now()) / 1000 / 60
           )
-        : 10;
+        : 15;
 
       res.status(403).json({
         success: false,
@@ -1286,10 +1286,6 @@ export const forgotPasswordWithSecurity = async (
       ? questionData.question
       : user.securityQuestion;
 
-    console.log(
-      `Pregunta de seguridad solicitada para: ${maskEmail(sanitizedEmail)}`
-    );
-
     // 11. Responder con la pregunta de seguridad
     res.status(200).json({
       success: true,
@@ -1406,7 +1402,7 @@ export const verifySecurityAnswer = async (
 
       // Si alcanza 3 intentos, bloquear por 10 minutos
       if (newAttempts >= 3) {
-        const blockedUntil = new Date(Date.now() + 10 * 60 * 1000);
+        const blockedUntil = new Date(Date.now() + 15 * 60 * 1000);
 
         await prisma.user.update({
           where: { id: user.id },
@@ -1578,7 +1574,7 @@ export const resendRecoveryCode = async (
         ? Math.ceil(
             (blockStatus.blockedUntil.getTime() - Date.now()) / 1000 / 60
           )
-        : 10;
+        : 15;
 
       res.status(403).json({
         success: false,
@@ -1699,7 +1695,7 @@ export const verifyRecoveryCode = async (
         ? Math.ceil(
             (blockStatus.blockedUntil.getTime() - Date.now()) / 1000 / 60
           )
-        : 10;
+        : 15;
 
       res.status(403).json({
         success: false,
@@ -2174,7 +2170,7 @@ export const resetPasswordWithLink = async (
             recoveryAttempts: newAttempts,
             recoveryBlockedUntil: blockedUntil,
             resetToken: null,
-            resetId: null, // 👈 Limpiar resetId
+            resetId: null,
             resetTokenExpiry: null,
           },
         });
@@ -2194,7 +2190,7 @@ export const resetPasswordWithLink = async (
         data: {
           recoveryAttempts: newAttempts,
           resetToken: null,
-          resetId: null, // 👈 Limpiar resetId
+          resetId: null,
           resetTokenExpiry: null,
         },
       });
@@ -2227,7 +2223,7 @@ export const resetPasswordWithLink = async (
       data: {
         password: hashedPassword,
         resetToken: null,
-        resetId: null, // 👈 Limpiar resetId
+        resetId: null,
         resetTokenExpiry: null,
         recoveryAttempts: 0,
         recoveryBlockedUntil: null,
