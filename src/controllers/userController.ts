@@ -96,8 +96,8 @@ export const logout = async (
     // Eliminar cookie
     res.clearCookie("auth_token", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
       path: "/",
     });
 
@@ -137,8 +137,8 @@ export const logoutAll = async (
     // Eliminar cookie actual
     res.clearCookie("auth_token", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      secure: true,
+      sameSite: "none",
       path: "/",
     });
 
