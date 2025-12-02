@@ -10,7 +10,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: string;
-  jti: string; // 👈 AGREGADO
+  jti: string;
 }
 
 export interface TemporaryTokenPayload {

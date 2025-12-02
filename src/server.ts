@@ -172,7 +172,7 @@ process.on("SIGINT", async () => {
 });
 
 process.on("SIGTERM", async () => {
-  console.log("\n👋 SIGTERM recibido. Cerrando servidor...");
+  console.log("\nSIGTERM recibido. Cerrando servidor...");
   server.close(async () => {
     await prisma.$disconnect();
     console.log("✅ Servidor cerrado correctamente");

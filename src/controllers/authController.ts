@@ -952,9 +952,10 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
     res.cookie("auth_token", jwtToken, {
       httpOnly: true, // No accesible desde JavaScript
       secure: isProduction, //Solo HTTPS en producción
-      sameSite: "strict", // Protección CSRF
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 15 * 60 * 1000,
       path: "/",
+      domain: isProduction ? ".onrender.com" : undefined,
     });
 
     // 13.5 Generar y enviar token CSRF
@@ -962,11 +963,12 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
     const csrfToken = generateCSRFToken();
 
     res.cookie("csrf_token", csrfToken, {
-      httpOnly: false, // ❗ Debe ser false para que el frontend lo lea
+      httpOnly: false,
       secure: isProduction,
-      sameSite: "strict",
+      sameSite: isProduction ? "none" : "lax",
       maxAge: 24 * 60 * 60 * 1000, // 24 horas
       path: "/",
+      domain: isProduction ? ".onrender.com" : undefined,
     });
 
     // 14. Registrar login exitoso
