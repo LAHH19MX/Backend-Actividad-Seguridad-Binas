@@ -13,6 +13,8 @@ import {
   resetPasswordWithLink,
   forgotPasswordWithSecurity,
   verifySecurityAnswer,
+  verifyEmailLink,
+  resendVerificationLink,
 } from "../controllers/authController";
 import {
   registerLimiter,
@@ -122,5 +124,19 @@ router.post(
  * @access  Public
  */
 router.post("/verify-security-answer", codeLimiter, verifySecurityAnswer);
+
+/**
+ * @route   GET /api/auth/verify-email-link/:id
+ * @desc    Verificar enlace de email al registrarse
+ * @access  Public
+ */
+router.get("/verify-email-link/:id", verifyEmailLink);
+
+/**
+ * @route   POST /api/auth/resend-verification-link
+ * @desc    Reenviar enlace de verificación de email
+ * @access  Public
+ */
+router.post("/resend-verification-link", codeLimiter, resendVerificationLink);
 
 export default router;

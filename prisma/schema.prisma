@@ -24,13 +24,18 @@ model User {
   blockedUntil    DateTime?
   failedAttempts  Int      @default(0)
   
-  resetToken      String?   // Token privado
-  resetId         String?   // ID público
-  resetTokenExpiry DateTime? // Fecha de expiración del token (5 minutos)
+  resetToken      String?   
+  resetId         String?   
+  resetTokenExpiry DateTime? 
+
+  verificationId       String?    
+  verificationIdExpiry DateTime?
+
   recoveryAttempts Int      @default(0) 
-  recoveryBlockedUntil DateTime? // Bloqueo temporal por exceso de intentos
-  securityQuestion    String?   // Pregunta elegida 
-  securityAnswer      String?   // Respuesta 
+  recoveryBlockedUntil DateTime?
+  securityQuestion    String?   
+  securityAnswer      String? 
+
   securityAnswerAttempts Int   @default(0) // Intentos fallidos de respuesta
   securityAnswerBlockedUntil DateTime? // Bloqueo por intentos fallidos
   sessions          Session[]

@@ -2009,7 +2009,6 @@ export const verifyResetToken = async (
   res: Response
 ): Promise<void> => {
   try {
-    // 👇 LOGS DETALLADOS
     console.log("=== VERIFICANDO RESET TOKEN ===");
     console.log("1. req.params completo:", req.params);
     console.log("2. req.params.id:", req.params.id);
@@ -2023,7 +2022,7 @@ export const verifyResetToken = async (
 
     // 1. Validar que el resetId exista
     if (!resetId) {
-      console.log("❌ ERROR: resetId no existe");
+      console.log("ERROR: resetId no existe");
       res.status(400).json({
         success: false,
         error: "ID es obligatorio",
@@ -2050,7 +2049,7 @@ export const verifyResetToken = async (
 
     // 3. Si no existe el usuario o el resetId
     if (!user || !user.resetId || !user.resetToken || !user.resetTokenExpiry) {
-      console.log("❌ ERROR: Usuario no encontrado o datos incompletos");
+      console.log("ERROR: Usuario no encontrado o datos incompletos");
       res.status(400).json({
         success: false,
         error: "Enlace inválido o expirado",
@@ -2065,7 +2064,7 @@ export const verifyResetToken = async (
         (user.recoveryBlockedUntil.getTime() - Date.now()) / 1000 / 60
       );
 
-      console.log("❌ ERROR: Usuario bloqueado");
+      console.log("ERROR: Usuario bloqueado");
       res.status(403).json({
         success: false,
         error: `Demasiados intentos de recuperación. Intenta nuevamente en ${timeLeft} minutos.`,
@@ -2081,7 +2080,7 @@ export const verifyResetToken = async (
     console.log("15. ¿Expiró?:", now > user.resetTokenExpiry);
 
     if (now > user.resetTokenExpiry) {
-      console.log("❌ ERROR: Token expirado");
+      console.log("ERROR: Token expirado");
 
       // Limpiar token expirado
       await prisma.user.update({
@@ -2128,7 +2127,7 @@ export const verifyResetToken = async (
       },
     });
   } catch (error: any) {
-    console.error("❌❌❌ ERROR CATCH:", error);
+    console.error("ERROR CATCH:", error);
     console.error("Stack trace:", error.stack);
     res.status(500).json({
       success: false,
@@ -2348,6 +2347,243 @@ export const resetPasswordWithLink = async (
     res.status(500).json({
       success: false,
       error: "Error al cambiar contraseña",
+    });
+  }
+};
+
+/**
+ * VERIFICAR ENLACE DE EMAIL - GET /api/auth/verify-email-link/:id
+ */
+export const verifyEmailLink = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const verificationId = req.params.id;
+
+    console.log("🔍 Verificando enlace de email con ID:", verificationId);
+
+    // 1. Validar que el verificationId exista
+    if (!verificationId) {
+      res.status(400).json({
+        success: false,
+        error: "ID de verificación es obligatorio",
+      });
+      return;
+    }
+
+    // 2. Buscar usuario con ese verificationId
+    const user = await prisma.user.findFirst({
+      where: {
+        verificationId: verificationId,
+      },
+    });
+
+    // 3. Si no existe el usuario
+    if (!user || !user.verificationId || !user.verificationIdExpiry) {
+      console.log("❌ Usuario no encontrado o enlace inválido");
+      res.status(400).json({
+        success: false,
+        error: "Enlace de verificación inválido o expirado",
+        isValid: false,
+      });
+      return;
+    }
+
+    // 4. Verificar si ya está verificado
+    if (user.isVerified) {
+      console.log("⚠️ Usuario ya está verificado");
+      res.status(400).json({
+        success: false,
+        error: "Esta cuenta ya ha sido verificada",
+        isValid: false,
+      });
+      return;
+    }
+
+    // 5. Verificar si el enlace expiró (5 minutos)
+    const now = new Date();
+    if (now > user.verificationIdExpiry) {
+      console.log("❌ Enlace expirado");
+
+      // Limpiar enlace expirado
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          verificationId: null,
+          verificationIdExpiry: null,
+        },
+      });
+
+      res.status(400).json({
+        success: false,
+        error: "El enlace ha expirado. Solicita uno nuevo.",
+        isValid: false,
+      });
+      return;
+    }
+
+    // 6. Marcar usuario como verificado
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isVerified: true,
+        verificationId: null,
+        verificationIdExpiry: null,
+      },
+    });
+
+    // 7. Invalidar códigos de verificación por email
+    await prisma.verificationCode.updateMany({
+      where: {
+        userId: user.id,
+        type: "REGISTRATION_EMAIL",
+        isUsed: false,
+      },
+      data: { isUsed: true },
+    });
+
+    // 8. Registrar verificación exitosa
+    await prisma.loginAttempt.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        ipAddress: req.ip,
+        userAgent: req.headers["user-agent"],
+        success: true,
+        failReason: "Email verificado con enlace",
+      },
+    });
+
+    console.log(`✅ Email verificado exitosamente: ${maskEmail(user.email)}`);
+
+    // 9. Responder con éxito
+    res.status(200).json({
+      success: true,
+      message: "Email verificado exitosamente. Ahora puedes iniciar sesión.",
+      data: {
+        isValid: true,
+        email: user.email,
+        isVerified: true,
+      },
+    });
+  } catch (error: any) {
+    console.error("❌ Error verificando enlace de email:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al verificar enlace",
+    });
+  }
+};
+
+/**
+ * REENVIAR ENLACE DE VERIFICACIÓN - POST /api/auth/resend-verification-link
+ */
+export const resendVerificationLink = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { email } = req.body;
+
+    // 1. Validar que el email exista
+    if (!email) {
+      res.status(400).json({
+        success: false,
+        error: "El email es obligatorio",
+      });
+      return;
+    }
+
+    // 2. Sanitizar email
+    const sanitizedEmail = sanitizeEmail(email);
+
+    // 3. Validar formato de email
+    if (!isValidEmail(sanitizedEmail)) {
+      res.status(400).json({
+        success: false,
+        error: "El formato del email es inválido",
+      });
+      return;
+    }
+
+    // 4. Buscar usuario por email
+    const user = await prisma.user.findUnique({
+      where: { email: sanitizedEmail },
+    });
+
+    // 5. Si no existe, responder mensaje genérico (seguridad)
+    if (!user) {
+      res.status(200).json({
+        success: true,
+        message:
+          "Si el email está registrado, recibirás un enlace de verificación.",
+      });
+      return;
+    }
+
+    // 6. Si ya está verificado
+    if (user.isVerified) {
+      res.status(400).json({
+        success: false,
+        error: "Esta cuenta ya está verificada",
+      });
+      return;
+    }
+
+    // 7. Invalidar enlace anterior
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationId: null,
+        verificationIdExpiry: null,
+      },
+    });
+
+    // 8. Generar nuevo verificationId
+    const verificationId = crypto.randomBytes(16).toString("hex");
+    const verificationIdExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
+
+    // 9. Guardar en BD
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationId,
+        verificationIdExpiry,
+      },
+    });
+
+    // 10. Enviar enlace por email
+    const { sendVerificationLink } = await import("../services/emailService");
+    const emailSent = await sendVerificationLink(
+      sanitizedEmail,
+      verificationId
+    );
+
+    if (!emailSent) {
+      console.error("⚠️  Error enviando enlace de verificación");
+    }
+
+    console.log(
+      `✅ Enlace de verificación reenviado a: ${maskEmail(sanitizedEmail)}`
+    );
+
+    // 11. Responder con éxito
+    res.status(200).json({
+      success: true,
+      message:
+        "Enlace de verificación enviado a tu email. Válido por 5 minutos.",
+      data: {
+        email: sanitizedEmail,
+        emailSent,
+        expiresIn: "5 minutos",
+      },
+    });
+  } catch (error: any) {
+    console.error("❌ Error reenviando enlace de verificación:", error);
+    res.status(500).json({
+      success: false,
+      error: "Error al reenviar enlace",
     });
   }
 };

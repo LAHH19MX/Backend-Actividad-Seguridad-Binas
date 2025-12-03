@@ -179,7 +179,7 @@ export const sendPasswordChangedConfirmation = async (
  */
 export const sendPasswordResetLink = async (
   email: string,
-  resetId: string // 👈 Ahora recibe resetId en lugar de resetToken
+  resetId: string
 ): Promise<boolean> => {
   const FRONTEND_URL = "https://frontend-actividad-seguridad-binas.vercel.app";
   const resetLink = `${FRONTEND_URL}/reset-password-link?id=${resetId}`;
@@ -202,6 +202,38 @@ export const sendPasswordResetLink = async (
   return await sendEmail({
     to: email,
     subject: "Enlace de Recuperación de Contraseña - Sistema de Autenticación",
+    htmlContent,
+  });
+};
+
+/**
+ * Envía enlace de verificación de email al registrarse
+ */
+export const sendVerificationLink = async (
+  email: string,
+  verificationId: string
+): Promise<boolean> => {
+  const FRONTEND_URL = "https://frontend-actividad-seguridad-binas.vercel.app";
+  const verificationLink = `${FRONTEND_URL}/verify-email-link?id=${verificationId}`;
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">Verifica tu correo electrónico</h2>
+      <p>Gracias por registrarte. Para activar tu cuenta, haz clic en el siguiente enlace:</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${verificationLink}" 
+           style="background-color: #4CAF50; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+          Verificar Email
+        </a>
+      </div>
+      <p style="color: #d32f2f; font-weight: bold;">⚠️ Este enlace expirará en 5 minutos.</p>
+      <p style="color: #999; font-size: 12px;">Si no te registraste en nuestro sitio, ignora este mensaje.</p>
+    </div>
+  `;
+
+  return await sendEmail({
+    to: email,
+    subject: "Verifica tu Email - Sistema de Autenticación",
     htmlContent,
   });
 };
