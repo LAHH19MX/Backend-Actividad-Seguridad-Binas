@@ -919,8 +919,6 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 10. Si el código es CORRECTO ✅✅✅
-
     // Resetear intentos fallidos
     await resetFailedAttempts(user.id);
 
@@ -965,7 +963,7 @@ export const verify2FA = async (req: Request, res: Response): Promise<void> => {
       httpOnly: false,
       secure: true,
       sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000, // 24 horas
+      maxAge: 15 * 60 * 1000, // 24 horas
       path: "/",
     });
 

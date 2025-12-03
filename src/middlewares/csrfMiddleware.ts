@@ -23,10 +23,10 @@ export const setCSRFToken = (
 
   // Guardarlo en cookie separada
   res.cookie("csrf_token", csrfToken, {
-    httpOnly: false, // ❗ Debe ser false para que JS pueda leerlo
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict",
-    maxAge: 24 * 60 * 60 * 1000, // 24 horas
+    httpOnly: false,
+    secure: true,
+    sameSite: "none",
+    maxAge: 15 * 60 * 1000,
     path: "/",
   });
 

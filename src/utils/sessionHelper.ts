@@ -22,28 +22,28 @@ export const isSessionValid = async (
 
     // 3. Validaciones
     if (!session) {
-      console.log(`❌ Sesión no encontrada: JTI=${jti}`);
+      console.log(`Sesión no encontrada: JTI=${jti}`);
       return false;
     }
 
     if (session.isRevoked) {
-      console.log(`❌ Sesión revocada: JTI=${jti}`);
+      console.log(`Sesión revocada: JTI=${jti}`);
       return false;
     }
 
     if (session.token !== tokenHash) {
-      console.log(`❌ Token no coincide con BD: JTI=${jti}`);
+      console.log(`Token no coincide con BD: JTI=${jti}`);
       return false;
     }
 
     if (new Date() > session.expiresAt) {
-      console.log(`❌ Sesión expirada: JTI=${jti}`);
+      console.log(`Sesión expirada: JTI=${jti}`);
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("❌ Error validando sesión:", error);
+    console.error("Error validando sesión:", error);
     return false;
   }
 };

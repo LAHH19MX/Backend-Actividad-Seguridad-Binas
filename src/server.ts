@@ -22,6 +22,7 @@ app.use(
     origin: (origin, callback) => {
       const allowedOrigins = [
         /^https:\/\/frontend-actividad-seguridad-binas.*\.vercel\.app$/,
+        "http://localhost:3000",
       ];
 
       if (!origin) return callback(null, true);
