@@ -87,7 +87,7 @@ export const logout = async (
       }
     }
 
-    res.clearCookie("auth_token", {
+    res.cookie("auth_token", {
       httpOnly: true,
       secure: true,
       sameSite: "none",
@@ -95,7 +95,7 @@ export const logout = async (
       expires: new Date(0),
     });
 
-    res.clearCookie("csrf_token", {
+    res.cookie("csrf_token", {
       httpOnly: false,
       secure: true,
       sameSite: "none",
@@ -112,7 +112,7 @@ export const logout = async (
   } catch (error: any) {
     console.error("Error en logout:", error);
 
-    res.clearCookie("auth_token", {
+    res.cookie("auth_token", {
       httpOnly: true,
       secure: true,
       sameSite: "none",
@@ -120,7 +120,7 @@ export const logout = async (
       expires: new Date(0),
     });
 
-    res.clearCookie("csrf_token", {
+    res.cookie("csrf_token", {
       httpOnly: false,
       secure: true,
       sameSite: "none",
