@@ -92,7 +92,7 @@ export const logout = async (
       secure: true,
       sameSite: "none",
       path: "/",
-      expires: new Date(0),
+      // expires: new Date(0),
     });
 
     res.cookie("csrf_token", {
@@ -100,7 +100,7 @@ export const logout = async (
       secure: true,
       sameSite: "none",
       path: "/",
-      expires: new Date(0),
+      // expires: new Date(0),
     });
 
     res.setHeader("Clear-Site-Data", '"cookies"');
@@ -117,7 +117,7 @@ export const logout = async (
       secure: true,
       sameSite: "none",
       path: "/",
-      expires: new Date(0),
+      // expires: new Date(0),
     });
 
     res.cookie("csrf_token", {
@@ -125,7 +125,7 @@ export const logout = async (
       secure: true,
       sameSite: "none",
       path: "/",
-      expires: new Date(0),
+      // expires: new Date(0),
     });
 
     res.status(500).json({
