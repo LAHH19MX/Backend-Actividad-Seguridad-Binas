@@ -87,18 +87,20 @@ export const logout = async (
       }
     }
 
-    res.clearCookie("auth_token", {
+    res.cookie("auth_token", {
       httpOnly: true,
       secure: true,
       sameSite: "none",
       path: "/",
+      maxAge: 0,
     });
 
-    res.clearCookie("csrf_token", {
+    res.cookie("csrf_token", {
       httpOnly: false,
       secure: true,
       sameSite: "none",
       path: "/",
+      maxAge: 0,
     });
 
     res.setHeader("Clear-Site-Data", '"cookies"');
@@ -110,18 +112,20 @@ export const logout = async (
   } catch (error: any) {
     console.error("Error en logout:", error);
 
-    res.clearCookie("auth_token", {
+    res.cookie("auth_token", {
       httpOnly: true,
       secure: true,
       sameSite: "none",
       path: "/",
+      maxAge: 0,
     });
 
-    res.clearCookie("csrf_token", {
+    res.cookie("csrf_token", {
       httpOnly: false,
       secure: true,
       sameSite: "none",
       path: "/",
+      maxAge: 0,
     });
 
     res.status(500).json({
