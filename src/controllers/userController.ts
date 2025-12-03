@@ -101,6 +101,8 @@ export const logout = async (
       path: "/",
     });
 
+    res.setHeader("Clear-Site-Data", '"cookies"');
+
     res.status(200).json({
       success: true,
       message: "Sesión cerrada exitosamente",
