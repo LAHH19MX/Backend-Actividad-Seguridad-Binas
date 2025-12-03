@@ -11,7 +11,7 @@ const maskEmail = (email: string): string => {
   return `${maskedLocal}@${domain}`;
 };
 
-const BLOCK_DURATION_MINUTES = 15; // Bloqueo por 10 minutos
+const BLOCK_DURATION_MINUTES = 15;
 const MAX_FAILED_ATTEMPTS = 3; // Máximo de intentos fallidos
 
 export const incrementFailedAttempts = async (

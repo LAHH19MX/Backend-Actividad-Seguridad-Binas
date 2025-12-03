@@ -1142,25 +1142,32 @@ export const forgotPassword = async (
 
     // 9B. MÉTODO: ENLACE (MODIFICADO)
     if (recoveryMethod === "link") {
-      // Generar token privado (se guarda en BD, NO se envía)
-      const resetToken = crypto.randomBytes(32).toString("hex");
-
-      // Generar ID público (se envía en el enlace)
-      const resetId = crypto.randomBytes(16).toString("hex"); // 👈 NUEVO
-
-      const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
-
-      // Guardar ambos en BD
+      // 👇 PRIMERO: Limpiar enlaces anteriores
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          resetToken, // Token privado
-          resetId, // ID público 👈 NUEVO
+          resetToken: null,
+          resetId: null,
+          resetTokenExpiry: null,
+        },
+      });
+
+      // 👇 SEGUNDO: Generar NUEVOS tokens
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetId = crypto.randomBytes(16).toString("hex");
+      const resetTokenExpiry = new Date(Date.now() + 5 * 60 * 1000); // 5 minutos
+
+      // 👇 TERCERO: Guardar en BD
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          resetToken,
+          resetId,
           resetTokenExpiry,
         },
       });
 
-      // Enviar enlace con resetId (NO con resetToken) 👈 CAMBIO
+      // 👇 CUARTO: Enviar email
       const { sendPasswordResetLink } = await import(
         "../services/emailService"
       );
@@ -1174,6 +1181,7 @@ export const forgotPassword = async (
         `Enlace de recuperación enviado a: ${maskEmail(sanitizedEmail)}`
       );
 
+      // 👇 QUINTO: Responder
       res.status(200).json({
         success: true,
         message:
