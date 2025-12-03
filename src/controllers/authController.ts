@@ -2001,9 +2001,9 @@ export const verifyResetToken = async (
   res: Response
 ): Promise<void> => {
   try {
-    const { id: resetId } = req.params;
+    const resetId = req.params.id;
 
-    console.log("🔍 Params recibidos:", req.params); // 👈 AGREGAR ESTO
+    console.log("🔍 Params recibidos:", req.params);
     console.log("🔍 URL completa:", req.url);
 
     console.log("🔍 resetId recibido:", resetId);
