@@ -1335,7 +1335,7 @@ export const forgotPasswordWithSecurity = async (
 };
 
 /**
- * VERIFICAR RESPUESTA DE PREGUNTA SECRETA - POST /api/auth/verify-security-answer
+ * VERIFICAR RESPUESTA DE PREGUNTA SECRETa
  */
 export const verifySecurityAnswer = async (
   req: Request,

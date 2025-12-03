@@ -77,25 +77,25 @@ export const logout = async (
   try {
     const token = req.cookies.auth_token;
 
-    if (!token) {
-      res.status(400).json({
-        success: false,
-        error: "No hay sesión activa",
-      });
-      return;
+    if (token) {
+      // Decodificar token para obtener jti
+      const decoded = verifyToken(token);
+
+      if (decoded && decoded.jti) {
+        // Revocar sesión en BD
+        await revokeSession(decoded.jti);
+      }
     }
 
-    // Decodificar token para obtener jti
-    const decoded = verifyToken(token);
-
-    if (decoded && decoded.jti) {
-      // Revocar sesión en BD
-      await revokeSession(decoded.jti);
-    }
-
-    // Eliminar cookie
     res.clearCookie("auth_token", {
       httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    });
+
+    res.clearCookie("csrf_token", {
+      httpOnly: false,
       secure: true,
       sameSite: "none",
       path: "/",
@@ -107,6 +107,21 @@ export const logout = async (
     });
   } catch (error: any) {
     console.error("Error en logout:", error);
+
+    res.clearCookie("auth_token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    });
+
+    res.clearCookie("csrf_token", {
+      httpOnly: false,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+    });
+
     res.status(500).json({
       success: false,
       error: "Error al cerrar sesión",
