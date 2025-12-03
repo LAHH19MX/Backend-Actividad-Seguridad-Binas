@@ -51,8 +51,30 @@ export const validateCSRFToken = (
   const csrfTokenFromCookie = req.cookies.csrf_token;
   const csrfTokenFromHeader = req.headers["x-csrf-token"];
 
+  // 🔍 Convertir header a string si es array
+  const headerValue = Array.isArray(csrfTokenFromHeader)
+    ? csrfTokenFromHeader[0]
+    : csrfTokenFromHeader;
+
+  // 🔍 DEBUG TEMPORAL
+  console.log("🔍 CSRF Validation Debug:", {
+    method: req.method,
+    url: req.url,
+    hasCookie: !!csrfTokenFromCookie,
+    hasHeader: !!headerValue,
+    cookieValue: csrfTokenFromCookie
+      ? csrfTokenFromCookie.substring(0, 10) + "..."
+      : "MISSING",
+    headerValue: headerValue ? headerValue.substring(0, 10) + "..." : "MISSING",
+    match: csrfTokenFromCookie === headerValue,
+  });
+
   // Validar que existan ambos tokens
-  if (!csrfTokenFromCookie || !csrfTokenFromHeader) {
+  if (!csrfTokenFromCookie || !headerValue) {
+    console.error("❌ CSRF token faltante:", {
+      cookie: !!csrfTokenFromCookie,
+      header: !!headerValue,
+    });
     res.status(403).json({
       success: false,
       error: "Token CSRF no proporcionado",
@@ -61,7 +83,8 @@ export const validateCSRFToken = (
   }
 
   // Validar que coincidan
-  if (csrfTokenFromCookie !== csrfTokenFromHeader) {
+  if (csrfTokenFromCookie !== headerValue) {
+    console.error("❌ CSRF tokens no coinciden");
     res.status(403).json({
       success: false,
       error: "Token CSRF inválido",
@@ -69,6 +92,6 @@ export const validateCSRFToken = (
     return;
   }
 
-  // Token válido, continuar
+  console.log("✅ CSRF token válido");
   next();
 };
