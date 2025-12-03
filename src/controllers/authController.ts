@@ -2001,15 +2001,21 @@ export const verifyResetToken = async (
   res: Response
 ): Promise<void> => {
   try {
+    // 👇 LOGS DETALLADOS
+    console.log("=== VERIFICANDO RESET TOKEN ===");
+    console.log("1. req.params completo:", req.params);
+    console.log("2. req.params.id:", req.params.id);
+    console.log("3. req.query:", req.query);
+    console.log("4. req.url:", req.url);
+
     const resetId = req.params.id;
 
-    console.log("🔍 Params recibidos:", req.params);
-    console.log("🔍 URL completa:", req.url);
-
-    console.log("🔍 resetId recibido:", resetId);
+    console.log("5. resetId extraído:", resetId);
+    console.log("6. Tipo de resetId:", typeof resetId);
 
     // 1. Validar que el resetId exista
     if (!resetId) {
+      console.log("❌ ERROR: resetId no existe");
       res.status(400).json({
         success: false,
         error: "ID es obligatorio",
@@ -2017,15 +2023,26 @@ export const verifyResetToken = async (
       return;
     }
 
-    // 2. Buscar usuario con ese resetId (NO con resetToken)
+    console.log("7. Buscando usuario con resetId:", resetId);
+
+    // 2. Buscar usuario con ese resetId
     const user = await prisma.user.findFirst({
       where: {
-        resetId: resetId, // 👈 Buscar por resetId público
+        resetId: resetId,
       },
     });
 
+    console.log("8. Usuario encontrado:", user ? "SÍ" : "NO");
+    if (user) {
+      console.log("9. Usuario ID:", user.id);
+      console.log("10. resetId en BD:", user.resetId);
+      console.log("11. resetToken existe:", !!user.resetToken);
+      console.log("12. resetTokenExpiry:", user.resetTokenExpiry);
+    }
+
     // 3. Si no existe el usuario o el resetId
     if (!user || !user.resetId || !user.resetToken || !user.resetTokenExpiry) {
+      console.log("❌ ERROR: Usuario no encontrado o datos incompletos");
       res.status(400).json({
         success: false,
         error: "Enlace inválido o expirado",
@@ -2040,6 +2057,7 @@ export const verifyResetToken = async (
         (user.recoveryBlockedUntil.getTime() - Date.now()) / 1000 / 60
       );
 
+      console.log("❌ ERROR: Usuario bloqueado");
       res.status(403).json({
         success: false,
         error: `Demasiados intentos de recuperación. Intenta nuevamente en ${timeLeft} minutos.`,
@@ -2050,13 +2068,19 @@ export const verifyResetToken = async (
 
     // 5. Verificar si el token expiró (5 minutos)
     const now = new Date();
+    console.log("13. Hora actual:", now);
+    console.log("14. Token expira:", user.resetTokenExpiry);
+    console.log("15. ¿Expiró?:", now > user.resetTokenExpiry);
+
     if (now > user.resetTokenExpiry) {
+      console.log("❌ ERROR: Token expirado");
+
       // Limpiar token expirado
       await prisma.user.update({
         where: { id: user.id },
         data: {
           resetToken: null,
-          resetId: null, // 👈 Limpiar también resetId
+          resetId: null,
           resetTokenExpiry: null,
         },
       });
@@ -2069,31 +2093,35 @@ export const verifyResetToken = async (
       return;
     }
 
-    // 6. Generar token temporal para el siguiente paso (NO exponer resetToken)
+    // 6. Generar token temporal
+    console.log("16. Generando tempToken...");
+
     const tempToken = generateTemporaryToken(
       {
         userId: user.id,
-        resetId: resetId, // 👈 Incluir resetId para validación
+        resetId: resetId,
         purpose: "PASSWORD_RESET_LINK",
       },
       "10m"
     );
 
-    console.log(`Enlace válido para: ${maskEmail(user.email)}`);
+    console.log("17. tempToken generado exitosamente");
+    console.log(`✅ Enlace válido para: ${maskEmail(user.email)}`);
 
-    // 7. Responder con tempToken (NO con resetToken)
+    // 7. Responder con éxito
     res.status(200).json({
       success: true,
       message: "Enlace válido. Puedes cambiar tu contraseña.",
       data: {
         isValid: true,
-        tempToken, // 👈 Token temporal de sesión
+        tempToken,
         email: user.email,
         expiresAt: user.resetTokenExpiry,
       },
     });
   } catch (error: any) {
-    console.error("Error verificando enlace de reset:", error);
+    console.error("❌❌❌ ERROR CATCH:", error);
+    console.error("Stack trace:", error.stack);
     res.status(500).json({
       success: false,
       error: "Error al verificar enlace",
