@@ -164,10 +164,9 @@ server.on("error", (error: NodeJS.ErrnoException) => {
 
 // Manejo de cierre graceful
 process.on("SIGINT", async () => {
-  console.log("\n👋 SIGINT recibido. Cerrando servidor...");
   server.close(async () => {
     await prisma.$disconnect();
-    console.log("✅ Servidor cerrado correctamente");
+    console.log("Servidor cerrado correctamente");
     process.exit(0);
   });
 });
